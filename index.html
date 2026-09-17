@@ -339,6 +339,7 @@
   </div>
   <div class="user-field" id="userField" style="display:none;">
     Signed in as <strong id="signedInName" style="color:var(--ink);"></strong>
+    <button class="btn ghost small" id="changePasswordBtn">Change password</button>
     <button class="btn ghost small" id="logoutBtn">Log out</button>
   </div>
   <div class="bell-wrap">
@@ -418,6 +419,38 @@
     <div class="modal-foot">
       <button class="btn ghost" data-close="newCardOverlay">Cancel</button>
       <button class="btn primary" id="saveNewCardBtn">Create card</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="overlay" id="changePasswordOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2>Change password</h2>
+        <div class="sub">Applies to your account only</div>
+      </div>
+      <button class="close-x" data-close="changePasswordOverlay">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Current password</label>
+        <input type="password" id="cp_current" autocomplete="current-password">
+      </div>
+      <div class="field">
+        <label>New password</label>
+        <input type="password" id="cp_new" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label>Confirm new password</label>
+        <input type="password" id="cp_confirm" autocomplete="new-password">
+      </div>
+      <div id="cp_error" class="login-error" style="display:none;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" data-close="changePasswordOverlay">Cancel</button>
+      <button class="btn primary" id="cp_saveBtn">Update password</button>
     </div>
   </div>
 </div>
@@ -2119,6 +2152,69 @@
       if(event === "SIGNED_OUT") onSignedOut();
     });
   }
+
+  document.getElementById("changePasswordBtn").addEventListener("click", function(){
+    document.getElementById("cp_current").value = "";
+    document.getElementById("cp_new").value = "";
+    document.getElementById("cp_confirm").value = "";
+    document.getElementById("cp_error").style.display = "none";
+    openOverlay("changePasswordOverlay");
+  });
+  document.getElementById("cp_saveBtn").addEventListener("click", function(){
+    var errorEl = document.getElementById("cp_error");
+    errorEl.style.display = "none";
+    var current = document.getElementById("cp_current").value;
+    var next = document.getElementById("cp_new").value;
+    var confirmNext = document.getElementById("cp_confirm").value;
+
+    if(!current || !next || !confirmNext){
+      errorEl.textContent = "Fill in all three fields.";
+      errorEl.style.display = "block";
+      return;
+    }
+    if(next.length < 6){
+      errorEl.textContent = "New password must be at least 6 characters.";
+      errorEl.style.display = "block";
+      return;
+    }
+    if(next !== confirmNext){
+      errorEl.textContent = "New password and confirmation don't match.";
+      errorEl.style.display = "block";
+      return;
+    }
+    if(!supabaseClient || !currentSession){
+      errorEl.textContent = "Not signed in.";
+      errorEl.style.display = "block";
+      return;
+    }
+
+    var btn = document.getElementById("cp_saveBtn");
+    btn.disabled = true;
+    btn.textContent = "Updating…";
+    var email = currentSession.user.email;
+
+    // Re-verify the current password before allowing the change.
+    supabaseClient.auth.signInWithPassword({email:email, password:current}).then(function(res){
+      if(res.error){
+        btn.disabled = false;
+        btn.textContent = "Update password";
+        errorEl.textContent = "Current password is incorrect.";
+        errorEl.style.display = "block";
+        return;
+      }
+      supabaseClient.auth.updateUser({password:next}).then(function(res2){
+        btn.disabled = false;
+        btn.textContent = "Update password";
+        if(res2.error){
+          errorEl.textContent = "Couldn't update password — try again.";
+          errorEl.style.display = "block";
+          return;
+        }
+        closeOverlay("changePasswordOverlay");
+        toast("Password updated");
+      });
+    });
+  });
 
   /* ---------------- Init ---------------- */
   async function initApp(){
