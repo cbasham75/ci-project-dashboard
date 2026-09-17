@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CI Project Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F1F3EE;
+    --paper-raised:#FFFFFF;
+    --ink:#161A1D;
+    --ink-soft:#565F66;
+    --line:#D7DBD3;
+    --line-soft:#E5E8E0;
+    --blue:#2C5282;
+    --blue-deep:#1C3F60;
+    --amber:#C9820E;
+    --green:#3F7D58;
+    --red:#B3452F;
+    --slate:#6B7280;
+    --charcoal:#4B5563;
+    --focus:#2C5282;
+    font-family:'Archivo',system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#15181B;
+      --paper-raised:#1D2125;
+      --ink:#EDEFEA;
+      --ink-soft:#9AA2A8;
+      --line:#31363B;
+      --line-soft:#282C30;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#15181B;
+    --paper-raised:#1D2125;
+    --ink:#EDEFEA;
+    --ink-soft:#9AA2A8;
+    --line:#31363B;
+    --line-soft:#282C30;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--blue);}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+
+  /* ---------- Header ---------- */
+  header.topbar{
+    display:flex;align-items:center;gap:16px;
+    padding:14px 20px;
+    border-bottom:1px solid var(--line);
+    background:var(--paper-raised);
+    position:sticky;top:0;z-index:20;
+    flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;margin-right:auto;}
+  .brand .mark{
+    font-weight:800;font-size:19px;letter-spacing:-0.01em;
+  }
+  .brand .tag{
+    font-size:11.5px;color:var(--ink-soft);
+    border-left:1px solid var(--line);padding-left:10px;
+  }
+  .user-field{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft);}
+  .user-field input{
+    border:1px solid var(--line);background:var(--paper);color:var(--ink);
+    border-radius:5px;padding:6px 8px;font-size:13px;width:130px;
+  }
+  .btn{
+    border:1px solid var(--line);background:var(--paper-raised);color:var(--ink);
+    border-radius:6px;padding:8px 14px;font-size:13.5px;font-weight:600;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{border-color:var(--ink-soft);}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .btn.primary:hover{background:var(--blue-deep);}
+  .btn.danger{color:var(--red);}
+  .btn.ghost{border-color:transparent;background:transparent;}
+  .btn.small{padding:5px 10px;font-size:12.5px;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  .bell-wrap{position:relative;}
+  .bell{
+    position:relative;border:1px solid var(--line);background:var(--paper-raised);
+    border-radius:6px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:16px;
+  }
+  .bell .dot{
+    position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;
+    font-size:10px;font-weight:700;border-radius:10px;min-width:16px;height:16px;
+    display:flex;align-items:center;justify-content:center;padding:0 4px;
+  }
+  .alerts-panel{
+    position:absolute;right:0;top:44px;width:320px;max-height:400px;overflow:auto;
+    background:var(--paper-raised);border:1px solid var(--line);border-radius:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.12);display:none;z-index:40;
+  }
+  .alerts-panel.open{display:block;}
+  .alerts-panel h4{margin:0;padding:10px 14px;font-size:12.5px;color:var(--ink-soft);border-bottom:1px solid var(--line-soft);}
+  .alert-item{padding:10px 14px;border-bottom:1px solid var(--line-soft);font-size:13px;}
+  .alert-item:last-child{border-bottom:none;}
+  .alert-item .t{color:var(--ink-soft);font-size:11px;margin-top:3px;}
+  .alert-empty{padding:20px 14px;color:var(--ink-soft);font-size:13px;}
+
+  /* ---------- Board ---------- */
+  .board{
+    display:flex;gap:14px;padding:18px;overflow-x:auto;
+    align-items:flex-start;
+    min-height:calc(100vh - 66px);
+  }
+  .column{
+    flex:0 0 272px;width:272px;
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:10px;
+    display:flex;flex-direction:column;
+    max-height:calc(100vh - 100px);
+  }
+  .column.dragover{outline:2px dashed var(--stage-color,var(--blue));outline-offset:-2px;}
+  .column-head{
+    padding:12px 12px 10px;border-bottom:1px solid var(--line-soft);
+    border-top:3px solid var(--stage-color,var(--slate));
+    border-radius:10px 10px 0 0;
+  }
+  .column-head .title{font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;}
+  .column-head .count{
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);
+    background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;
+    padding:1px 7px;
+  }
+  .column-head .total{font-size:11px;color:var(--ink-soft);margin-top:4px;}
+  .column-body{padding:10px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;flex:1;}
+  .column-body:empty::after{
+    content:"No cards";display:block;text-align:center;color:var(--ink-soft);
+    font-size:12px;padding:16px 0;
+  }
+
+  .card{
+    background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--stage-color,var(--slate));
+    border-radius:8px;padding:10px 11px;cursor:grab;
+    transition:box-shadow .12s ease, transform .12s ease;
+  }
+  .card:hover{box-shadow:0 3px 10px rgba(0,0,0,.08);}
+  .card.dragging{opacity:.4;}
+  .card .pn{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .card .pn .divisions{display:flex;gap:3px;}
+  .card .divisions span{
+    font-size:9px;font-weight:700;border-radius:3px;padding:1px 4px;
+    background:var(--line-soft);color:var(--ink-soft);
+  }
+  .card .name{font-weight:700;font-size:13.5px;margin:5px 0 3px;line-height:1.25;}
+  .card .customer{font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;}
+  .card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}
+  .card .value{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13px;}
+  .card .due{font-size:10.5px;color:var(--ink-soft);}
+  .card .due.overdue{color:var(--red);font-weight:600;}
+  .card .pmbar{height:4px;border-radius:3px;background:var(--line-soft);margin-top:7px;overflow:hidden;}
+  .card .pmbar > i{display:block;height:100%;background:var(--green);}
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(15,18,20,.5);
+    display:none;align-items:flex-start;justify-content:center;
+    padding:32px 16px;overflow-y:auto;z-index:50;
+  }
+  .overlay.open{display:flex;}
+  .modal{
+    background:var(--paper-raised);border-radius:10px;
+    width:100%;max-width:560px;border:1px solid var(--line);
+    box-shadow:0 20px 50px rgba(0,0,0,.25);
+  }
+  .modal.wide{max-width:820px;}
+  .modal-head{
+    display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
+    padding:16px 20px;border-bottom:1px solid var(--line-soft);
+  }
+  .modal-head h2{margin:0;font-size:16.5px;}
+  .modal-head .sub{font-size:12px;color:var(--ink-soft);margin-top:3px;font-family:'IBM Plex Mono',monospace;}
+  .modal-body{padding:18px 20px;max-height:70vh;overflow-y:auto;}
+  .modal-foot{
+    padding:14px 20px;border-top:1px solid var(--line-soft);
+    display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;
+  }
+  .close-x{border:none;background:none;font-size:18px;color:var(--ink-soft);line-height:1;padding:4px;}
+
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
+  .field input[type=text],.field input[type=number],.field input[type=date],.field input[type=time],.field input[type=url],.field select,.field textarea{
+    width:100%;border:1px solid var(--line);background:var(--paper);color:var(--ink);
+    border-radius:6px;padding:8px 9px;font-size:13.5px;
+  }
+  .field textarea{min-height:64px;resize:vertical;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .checks{display:flex;gap:14px;flex-wrap:wrap;}
+  .checkline{display:flex;align-items:center;gap:6px;font-size:13px;}
+  .checkline input{width:15px;height:15px;}
+
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line-soft);margin-bottom:16px;flex-wrap:wrap;}
+  .tab{
+    padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--ink-soft);
+    border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;
+  }
+  .tab.active{color:var(--ink);border-color:var(--blue);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .subtabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+  .co-section-title{font-size:13.5px;font-weight:800;color:var(--ink);margin:0 0 8px;}
+  .co-divider{border:none;border-top:2px solid var(--line);margin:16px 0 14px;}
+  .subtab{
+    padding:5px 11px;font-size:11.5px;font-weight:600;color:var(--ink-soft);
+    border:1px solid var(--line);background:var(--paper-raised);border-radius:6px;
+  }
+  .subtab.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .subtab.add{color:var(--blue);border-style:dashed;background:none;}
+
+  .section-title{font-size:12px;font-weight:700;color:var(--ink-soft);margin:0 0 10px;text-transform:none;}
+  .subcard{border:1px solid var(--line-soft);border-radius:7px;padding:11px;margin-bottom:10px;background:var(--paper);}
+  .subcard .subhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .subcard .subhead .badge{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;
+    background:var(--line-soft);padding:2px 7px;border-radius:4px;
+  }
+  .miniremove{border:none;background:none;color:var(--red);font-size:12px;font-weight:600;}
+  .add-row-btn{font-size:12.5px;font-weight:600;color:var(--blue);border:1px dashed var(--line);background:none;
+    width:100%;padding:8px;border-radius:6px;}
+  .add-row-btn:hover{border-color:var(--blue);}
+
+  .inline-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .inline-row .field{margin-bottom:0;}
+  .compact-input{
+    border:1px solid var(--line);background:var(--paper-raised);color:var(--ink);
+    border-radius:5px;padding:6px 8px;font-size:13px;
+  }
+  .btn.small[disabled]{color:var(--ink-soft);}
+  a.btn.small{text-decoration:none;}
+
+  .notes-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;max-height:220px;overflow-y:auto;}
+  .note-item{border:1px solid var(--line-soft);border-radius:7px;padding:8px 10px;background:var(--paper);font-size:13px;}
+  .note-item .meta{font-size:10.5px;color:var(--ink-soft);margin-top:4px;font-family:'IBM Plex Mono',monospace;}
+  .note-empty{color:var(--ink-soft);font-size:12.5px;padding:8px 0;}
+
+  .value-summary{display:flex;gap:18px;flex-wrap:wrap;background:var(--paper);border:1px solid var(--line-soft);
+    border-radius:7px;padding:10px 14px;margin-bottom:16px;}
+  .value-summary div{font-size:11.5px;color:var(--ink-soft);}
+  .value-summary strong{display:block;font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--ink);margin-top:2px;font-weight:600;}
+
+  .stage-pill{
+    display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
+    padding:3px 9px;border-radius:20px;background:var(--stage-color,var(--slate));color:#fff;
+  }
+
+  footer.app-foot{
+    padding:14px 20px 26px;display:flex;gap:10px;justify-content:center;color:var(--ink-soft);font-size:12px;flex-wrap:wrap;
+  }
+
+  .calendar{padding:18px 20px;}
+  .cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .cal-nav{display:flex;align-items:center;gap:10px;}
+  .cal-month-label{font-weight:700;font-size:14.5px;min-width:150px;text-align:center;}
+  .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;font-size:11px;font-weight:700;color:var(--ink-soft);text-align:center;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+  .cal-day{border:1px solid var(--line);border-radius:8px;padding:6px;min-height:96px;background:var(--paper-raised);
+    display:flex;flex-direction:column;gap:3px;overflow:hidden;}
+  .cal-day.empty{background:transparent;border-color:transparent;}
+  .cal-day.today{border-color:var(--blue);border-width:2px;}
+  .cal-daynum{font-size:11px;color:var(--ink-soft);}
+  .cal-bubble{
+    display:block;width:100%;text-align:left;font-size:10.5px;padding:3px 7px;border-radius:12px;
+    border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .cal-bubble.done{background:rgba(63,125,88,.16);border-color:rgba(63,125,88,.4);color:var(--green);font-weight:600;}
+  .cal-bubble.pending{background:rgba(201,130,14,.18);border-color:rgba(201,130,14,.45);color:var(--amber);font-weight:600;}
+
+  .toast-wrap{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center;}
+  .toast{background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:7px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.2);}
+
+  @media (max-width:640px){
+    .row2,.row3{grid-template-columns:1fr;}
+    .column{flex:0 0 84vw;width:84vw;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mark">🗂️ CI Project Dashboard</span>
+    <span class="tag">Opportunity → Estimate → Project → Invoice</span>
+  </div>
+  <div class="user-field">
+    Working as
+    <input id="currentUserInput" type="text" placeholder="Your name">
+  </div>
+  <div class="bell-wrap">
+    <button class="bell" id="bellBtn" title="Alerts">🔔<span class="dot" id="alertDot" style="display:none;">0</span></button>
+    <div class="alerts-panel" id="alertsPanel">
+      <h4>Alerts</h4>
+      <div id="alertsList"></div>
+    </div>
+  </div>
+  <button class="btn ghost small" id="calendarBtn">📅 Estimator Calendar</button>
+  <button class="btn ghost small" id="archiveBtn">🗄️ On Hold / Lost / Archive</button>
+  <button class="btn ghost small" id="exportBtn">Export JSON</button>
+  <button class="btn ghost small" id="importBtn">Import JSON</button>
+  <input type="file" id="importFile" accept="application/json" style="display:none;">
+  <button class="btn primary" id="newCardBtn">+ New Opportunity</button>
+</header>
+
+<main class="board" id="board"></main>
+<div class="calendar" id="calendarView" style="display:none;"></div>
+<div class="calendar" id="archiveView" style="display:none;"></div>
+
+<footer class="app-foot">
+  MVP — data lives in this browser only (localStorage). Use Export JSON to back up or hand off to a database/GitHub build.
+</footer>
+
+<!-- New Card Modal -->
+<div class="overlay" id="newCardOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2>New Opportunity</h2>
+        <div class="sub">A project number is assigned automatically on save</div>
+      </div>
+      <button class="close-x" data-close="newCardOverlay">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Project name *</label>
+        <input type="text" id="f_projectName">
+      </div>
+      <div class="field">
+        <label>Address</label>
+        <input type="text" id="f_address">
+      </div>
+      <div class="field">
+        <label>Project customer (who the work is for)</label>
+        <input type="text" id="f_projectCustomer">
+      </div>
+      <div class="field">
+        <label>Direct customer(s)</label>
+        <div id="directCustomersContainer"></div>
+        <button type="button" class="add-row-btn" id="addDirectCustomerBtn">+ Add direct customer</button>
+      </div>
+      <div class="field">
+        <label>Divisions</label>
+        <div class="checks">
+          <label class="checkline"><input type="checkbox" id="f_div_scs"> SCS</label>
+          <label class="checkline"><input type="checkbox" id="f_div_security"> Security</label>
+          <label class="checkline"><input type="checkbox" id="f_div_av"> AV</label>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Bid due date</label>
+          <input type="date" id="f_bidDueDate">
+        </div>
+        <div class="field">
+          <label>Bid due time</label>
+          <select id="f_bidDueTime"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Salesperson (alerted when estimate is complete)</label>
+        <input type="text" id="f_salesperson">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" data-close="newCardOverlay">Cancel</button>
+      <button class="btn primary" id="saveNewCardBtn">Create card</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="overlay" id="detailOverlay">
+  <div class="modal wide" id="detailModal"></div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- Config ---------------- */
+  var STORE_KEY = "ci_dashboard_cards_v1";
+  var ALERT_KEY = "ci_dashboard_alerts_v1";
+  var USER_KEY = "ci_dashboard_user_v1";
+
+  // Shared Supabase project — every browser that opens this page reads/writes the same
+  // data. There is no login system yet, so this key (necessarily visible in page source)
+  // grants full read/write to anyone who has it. Fine for an internal tool behind a
+  // private link; add Supabase Auth before this is ever made public.
+  var SUPABASE_URL = "https://gzfusyhgxpekqxydyxna.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_ZKEHkqsP_iWetEJdjqTMZw_G0OukI1k";
+  var supabaseClient = null;
+  try {
+    if(window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch(e){ console.error("Supabase init failed", e); }
+
+  var COLUMNS = [
+    {key:"opportunity",           label:"Opportunity",            color:"var(--slate)"},
+    {key:"estimate_in_progress",  label:"Estimate in Progress",   color:"#C9820E"},
+    {key:"estimate_complete",     label:"Estimate Complete",      color:"#B4802A"},
+    {key:"estimate_submitted",    label:"Estimate Submitted",     color:"#8B6F3F"},
+    {key:"project_created",       label:"Project Created",        color:"var(--blue)"},
+    {key:"project_in_progress",   label:"Project in Progress",    color:"var(--blue-deep)"},
+    {key:"project_complete",      label:"Project Complete",       color:"var(--green)"},
+    {key:"final_invoiced",        label:"Final Invoiced",         color:"#2F6B4F"},
+    {key:"project_closed",        label:"Project Closed",         color:"var(--charcoal)"}
+  ];
+
+  /* ---------------- State ---------------- */
+  var cards = [];
+  var alerts = [];
+  var activeDetailId = null;
+  var activeTab = "overview";
+  var activeEstimateVersion = 0;
+  var calMonthOffset = 0;
+  var collapsedCO = {};
+
+  function loadCardsFromCache(){
+    var list;
+    try { list = JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+    catch(e){ list = []; }
+    return list;
+  }
+  async function loadCardsRemote(){
+    var res = await supabaseClient.from("cards").select("data").order("id");
+    if(res.error) throw res.error;
+    return res.data.map(function(row){ return row.data; });
+  }
+  function loadAlertsFromCache(){
+    try { return JSON.parse(localStorage.getItem(ALERT_KEY)) || []; }
+    catch(e){ return []; }
+  }
+  async function loadAlertsRemote(){
+    var res = await supabaseClient.from("alerts").select("*").order("created_at", {ascending:false}).limit(200);
+    if(res.error) throw res.error;
+    return res.data.map(function(row){
+      return {id:row.id, cardId:row.card_id, projectName:row.project_name, message:row.message, timestamp:row.created_at, read:!!row.read};
+    });
+  }
+
+  // Backfills fields for cards saved under earlier versions of this app so the UI never
+  // breaks against older localStorage data.
+  function migrateCard(c){
+    if(!Array.isArray(c.directCustomers)){
+      c.directCustomers = c.directCustomerName ? [{name:c.directCustomerName}] : [];
+    }
+    if(!c.projectCreated) c.projectCreated = {};
+    var pc = c.projectCreated;
+    if(!Array.isArray(pc.contacts)){
+      pc.contacts = (typeof pc.contacts === "string" && pc.contacts.trim()) ? [{name:pc.contacts.trim()}] : [];
+    }
+    if(!Array.isArray(pc.links)){
+      pc.links = pc.portalLink ? [{title:"Portal", url:pc.portalLink}] : [];
+    }
+    if(typeof pc.additionalInfo !== "string") pc.additionalInfo = "";
+    if(typeof pc.parking !== "string") pc.parking = "";
+    if(typeof pc.workHours !== "string") pc.workHours = "";
+    if(!c.pm) c.pm = {percentComplete:0, notes:[], billing:[]};
+    if(!Array.isArray(c.estimateVersions) || !c.estimateVersions.length){
+      c.estimateVersions = [{id: uid(), title:"", estimator: c.estimator || "", timestamp:null, stage:"", dueDate:""}];
+    }
+    c.estimateVersions.forEach(function(v){
+      if(typeof v.dueDate !== "string") v.dueDate = "";
+    });
+    if(!Array.isArray(c.bidInstructions)) c.bidInstructions = [];
+    if(Array.isArray(c.changeOrders)){
+      c.changeOrders.forEach(function(co){
+        if(typeof co.coInstructions !== "string") co.coInstructions = "";
+        if(typeof co.coDueDate !== "string") co.coDueDate = "";
+        if(typeof co.approved !== "boolean") co.approved = false;
+        if(typeof co.approvedBy !== "string") co.approvedBy = "";
+        if(typeof co.materialPrice !== "number") co.materialPrice = 0;
+        if(typeof co.laborPrice !== "number") co.laborPrice = 0;
+        if(typeof co.tax !== "number") co.tax = 0;
+        if(typeof co.laborHours !== "number") co.laborHours = 0;
+        // Amount has been retired in favor of Material/Labor/Tax — carry forward any old
+        // Amount-only value so existing change orders don't silently drop to $0.
+        if(!co.materialPrice && !co.laborPrice && !co.tax && co.amount){
+          co.materialPrice = Number(co.amount) || 0;
+        }
+        if(co.timestamp === undefined){
+          co.timestamp = co.date ? new Date(co.date).toISOString() : null;
+        }
+      });
+    }
+    if(!c.hla) c.hla = {status:"", reason:"", previousStatus:"", savedAt:null, savedBy:""};
+    if(!Array.isArray(c.subcontractors)) c.subcontractors = [];
+    return c;
+  }
+  function saveCards(){
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(cards)); } catch(e){}
+    if(!supabaseClient || !cards.length) return;
+    var rows = cards.map(function(c){ return {id:c.id, status:c.status, data:c, updated_at:new Date().toISOString()}; });
+    supabaseClient.from("cards").upsert(rows).then(function(res){
+      if(res.error){ console.error("Card save failed", res.error); toast("Save failed — check your connection"); }
+    });
+  }
+  function deleteCardRemote(id){
+    if(!supabaseClient) return;
+    supabaseClient.from("cards").delete().eq("id", id).then(function(res){
+      if(res.error) console.error("Card delete failed", res.error);
+    });
+  }
+  function saveAlerts(){
+    try { localStorage.setItem(ALERT_KEY, JSON.stringify(alerts)); } catch(e){}
+    if(!supabaseClient || !alerts.length) return;
+    var rows = alerts.map(function(a){
+      return {id:a.id, card_id:a.cardId||null, project_name:a.projectName||null, message:a.message, created_at:a.timestamp, read:!!a.read};
+    });
+    supabaseClient.from("alerts").upsert(rows).then(function(res){
+      if(res.error) console.error("Alert save failed", res.error);
+    });
+  }
+
+  function getUser(){ return localStorage.getItem(USER_KEY) || ""; }
+  function setUser(v){ localStorage.setItem(USER_KEY, v); }
+
+  /* ---------------- Helpers ---------------- */
+  function uid(){ return Math.random().toString(36).slice(2,9); }
+
+  function nextProjectNumber(){
+    var yy = new Date().getFullYear().toString().slice(-2);
+    var max = 0;
+    cards.forEach(function(c){
+      if(c.id && c.id.indexOf(yy + "-") === 0){
+        var n = parseInt(c.id.split("-")[1], 10);
+        if(!isNaN(n) && n > max) max = n;
+      }
+    });
+    return yy + "-" + String(max + 1).padStart(4, "0");
+  }
+
+  function money(n){
+    n = Number(n) || 0;
+    return "$" + n.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  // Parses a user-typed money string ("$1,234.50", "1234.5", etc.) back to a plain number.
+  function parseMoney(str){
+    if(typeof str !== "string") return Number(str) || 0;
+    var cleaned = str.replace(/[^0-9.\-]/g, "");
+    var n = parseFloat(cleaned);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // Rolling 30-minute time options, e.g. "8:00 AM", "8:30 AM" … stored as 24-hour "HH:MM".
+  function generateTimeOptions(){
+    var opts = [{value:"", label:"—"}];
+    for(var h=0; h<24; h++){
+      [0,30].forEach(function(m){
+        var value = String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
+        var period = h < 12 ? "AM" : "PM";
+        var h12 = h % 12; if(h12 === 0) h12 = 12;
+        var label = h12 + ":" + String(m).padStart(2,"0") + " " + period;
+        opts.push({value:value, label:label});
+      });
+    }
+    return opts;
+  }
+  function timeOptionsHtml(selected){
+    return generateTimeOptions().map(function(o){
+      return '<option value="' + o.value + '"' + (o.value === selected ? " selected" : "") + '>' + o.label + '</option>';
+    }).join("");
+  }
+
+  // Plain yyyy-mm-dd, matching what <input type="date"> stores in bidDueDate.
+  function formatDateISO(d){
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+
+  function totalValue(card){
+    var base = Number(card.contractAmount) || 0;
+    var coTotal = (card.changeOrders || []).reduce(function(sum, co){
+      return sum + (Number(co.materialPrice)||0) + (Number(co.laborPrice)||0) + (Number(co.tax)||0);
+    }, 0);
+    return base + coTotal;
+  }
+
+  function stageColor(key){
+    var col = COLUMNS.find(function(c){ return c.key === key; });
+    return col ? col.color : "var(--slate)";
+  }
+  function stageLabel(key){
+    var col = COLUMNS.find(function(c){ return c.key === key; });
+    return col ? col.label : key;
+  }
+
+  function isArchived(c){ return !!(c.hla && c.hla.status); }
+  function hlaLabel(status){
+    return status === "hold" ? "On Hold" : status === "lost" ? "Lost" : status === "archived" ? "Archived" : "Active";
+  }
+  function hlaColor(status){
+    return status === "hold" ? "var(--amber)" : status === "lost" ? "var(--red)" : status === "archived" ? "var(--charcoal)" : "var(--slate)";
+  }
+
+  function getPath(obj, path){
+    return path.split(".").reduce(function(o,k){ return (o == null) ? o : o[k]; }, obj);
+  }
+  function setPath(obj, path, value){
+    var parts = path.split(".");
+    var cur = obj;
+    for(var i=0;i<parts.length-1;i++){
+      if(cur[parts[i]] == null) cur[parts[i]] = {};
+      cur = cur[parts[i]];
+    }
+    cur[parts[parts.length-1]] = value;
+  }
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function toast(msg){
+    var wrap = document.getElementById("toastWrap");
+    var el = document.createElement("div");
+    el.className = "toast";
+    el.textContent = msg;
+    wrap.appendChild(el);
+    setTimeout(function(){ el.remove(); }, 3200);
+  }
+
+  function pushAlert(cardId, projectName, message){
+    alerts.unshift({
+      id: uid(), cardId: cardId, projectName: projectName,
+      message: message, timestamp: new Date().toISOString(), read:false
+    });
+    saveAlerts();
+    renderAlerts();
+  }
+
+  /* ---------------- Card factory ---------------- */
+  function makeCard(data){
+    return {
+      id: nextProjectNumber(),
+      status: "opportunity",
+      createdAt: new Date().toISOString(),
+      projectName: data.projectName || "",
+      address: data.address || "",
+      projectCustomer: data.projectCustomer || "",
+      directCustomers: data.directCustomers || [],
+      subcontractors: [],
+      bidInstructions: [],
+      salesperson: data.salesperson || "",
+      divisions: data.divisions || {scs:false, security:false, av:false},
+      bidDueDate: data.bidDueDate || "",
+      bidDueTime: data.bidDueTime || "",
+      contractAmount: 0,
+      changeOrders: [],
+      estimateVersions: [{id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:""}],
+      estimateComplete: {materialPrice:0, laborPrice:0, tax:0, laborHours:0, completedAt:null, alertSent:false},
+      submittedTo: [],
+      projectCreated: {
+        winningContractor:"", pmName:"", contacts:[], parking:"",
+        workHours:"", accessMethod:"", additionalInfo:"", permitRequired:false, permitNumber:"", links:[]
+      },
+      pm: { notes:[], percentComplete:0, billing:[] },
+      projectComplete: {dateCompleted:"", inspectionPassed:false, testResults:false, asBuilts:false},
+      finalInvoiced: {finalBilled:false},
+      projectClosed: {finalComments:""},
+      hla: {status:"", reason:"", previousStatus:"", savedAt:null, savedBy:""},
+      history: [{status:"opportunity", at:new Date().toISOString(), by:getUser()}]
+    };
+  }
+
+  /* ---------------- Rendering: board ---------------- */
+  function renderBoard(){
+    var board = document.getElementById("board");
+    board.innerHTML = "";
+    COLUMNS.forEach(function(col){
+      var colCards = cards.filter(function(c){ return c.status === col.key && !isArchived(c); });
+      var colTotal = colCards.reduce(function(s,c){ return s + totalValue(c); }, 0);
+
+      var colEl = document.createElement("div");
+      colEl.className = "column";
+      colEl.style.setProperty("--stage-color", col.color);
+      colEl.dataset.status = col.key;
+
+      colEl.innerHTML =
+        '<div class="column-head">' +
+          '<div class="title"><span>' + esc(col.label) + '</span><span class="count">' + colCards.length + '</span></div>' +
+          '<div class="total">' + money(colTotal) + ' total</div>' +
+        '</div>' +
+        '<div class="column-body"></div>';
+
+      var body = colEl.querySelector(".column-body");
+      colCards.forEach(function(card){
+        body.appendChild(renderCardEl(card));
+      });
+
+      colEl.addEventListener("dragover", function(e){
+        e.preventDefault();
+        colEl.classList.add("dragover");
+      });
+      colEl.addEventListener("dragleave", function(){
+        colEl.classList.remove("dragover");
+      });
+      colEl.addEventListener("drop", function(e){
+        e.preventDefault();
+        colEl.classList.remove("dragover");
+        var id = e.dataTransfer.getData("text/plain");
+        moveCard(id, col.key);
+      });
+
+      board.appendChild(colEl);
+    });
+  }
+
+  /* ---------------- Calendar / Archive views ---------------- */
+  function showCalendar(){
+    document.getElementById("board").style.display = "none";
+    document.getElementById("archiveView").style.display = "none";
+    document.getElementById("calendarView").style.display = "block";
+    renderCalendar();
+  }
+  function showArchive(){
+    document.getElementById("board").style.display = "none";
+    document.getElementById("calendarView").style.display = "none";
+    document.getElementById("archiveView").style.display = "block";
+    renderArchive();
+  }
+  function showBoard(){
+    document.getElementById("calendarView").style.display = "none";
+    document.getElementById("archiveView").style.display = "none";
+    document.getElementById("board").style.display = "flex";
+    renderBoard();
+  }
+
+  function renderArchive(){
+    var el = document.getElementById("archiveView");
+    var groups = {hold:[], lost:[], archived:[]};
+    cards.forEach(function(c){
+      if(isArchived(c)) groups[c.hla.status].push(c);
+    });
+
+    function sectionHtml(key, label){
+      var list = groups[key];
+      if(!list.length) return '<div class="note-empty">No ' + label.toLowerCase() + ' projects.</div>';
+      return list.map(function(c){
+        return '<div class="subcard">' +
+          '<div class="subhead">' +
+            '<span class="badge">' + esc(c.id) + '</span>' +
+            '<button class="btn small" data-open-archived-card="' + c.id + '">Open</button>' +
+          '</div>' +
+          '<div style="font-weight:700;font-size:13.5px;margin-bottom:2px;">' + esc(c.projectName || "Untitled project") + '</div>' +
+          '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">' + esc(c.projectCustomer || "—") + ' &nbsp;·&nbsp; ' + money(totalValue(c)) + '</div>' +
+          (c.hla.reason ? '<div style="font-size:12.5px;margin-bottom:8px;">' + esc(c.hla.reason) + '</div>' : '') +
+          '<div style="font-size:10.5px;color:var(--ink-soft);margin-bottom:9px;">Moved by ' + esc(c.hla.savedBy || "Unknown") + (c.hla.savedAt ? " — " + new Date(c.hla.savedAt).toLocaleString() : "") + '</div>' +
+          '<button class="btn small primary" data-reactivate-card="' + c.id + '">Reactivate</button>' +
+        '</div>';
+      }).join("");
+    }
+
+    el.innerHTML =
+      '<div class="cal-head">' +
+        '<button class="btn ghost" id="archiveBackBtn">← Back to Card view</button>' +
+        '<span class="cal-month-label">On Hold / Lost / Archived</span>' +
+        '<span></span>' +
+      '</div>' +
+      '<p class="section-title">On hold</p>' + sectionHtml("hold", "On hold") +
+      '<p class="section-title" style="margin-top:18px;">Lost</p>' + sectionHtml("lost", "Lost") +
+      '<p class="section-title" style="margin-top:18px;">Archived</p>' + sectionHtml("archived", "Archived");
+
+    el.querySelector("#archiveBackBtn").addEventListener("click", showBoard);
+    el.querySelectorAll("[data-open-archived-card]").forEach(function(btn){
+      btn.addEventListener("click", function(){ openDetail(btn.dataset.openArchivedCard); });
+    });
+    el.querySelectorAll("[data-reactivate-card]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var c = cards.find(function(x){ return x.id === btn.dataset.reactivateCard; });
+        if(!c) return;
+        c.status = c.hla.previousStatus || "opportunity";
+        c.hla.status = "";
+        saveCards();
+        renderBoard();
+        renderArchive();
+        toast("Card reactivated");
+      });
+    });
+  }
+
+  function renderCalendar(){
+    var cal = document.getElementById("calendarView");
+    var now = new Date();
+    var base = new Date(now.getFullYear(), now.getMonth() + calMonthOffset, 1);
+    var year = base.getFullYear(), month = base.getMonth();
+    var monthLabel = base.toLocaleDateString(undefined, {month:"long", year:"numeric"});
+    var firstWeekday = new Date(year, month, 1).getDay();
+    var daysInMonth = new Date(year, month+1, 0).getDate();
+    var todayStr = formatDateISO(now);
+
+    // A card counts as "past estimating" once it's reached Estimate Complete or later.
+    var estimateCompleteIdx = COLUMNS.findIndex(function(col){ return col.key === "estimate_complete"; });
+
+    var cellsHtml = "";
+    for(var i=0; i<firstWeekday; i++){ cellsHtml += '<div class="cal-day empty"></div>'; }
+    for(var d=1; d<=daysInMonth; d++){
+      var dateStr = formatDateISO(new Date(year, month, d));
+
+      var dayCards = cards.filter(function(c){ return c.bidDueDate === dateStr && !isArchived(c); });
+      var bubbles = dayCards.map(function(c){
+        var idx = COLUMNS.findIndex(function(col){ return col.key === c.status; });
+        var pastEstimating = idx >= estimateCompleteIdx;
+        var label = esc(c.projectName || "Untitled") + " / " + esc(c.id);
+        return '<button type="button" class="cal-bubble ' + (pastEstimating ? "done" : "pending") + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
+      }).join("");
+
+      // Change-order requests due this day: yellow until description, pricing, and a timestamp are filled in.
+      cards.forEach(function(c){
+        if(isArchived(c)) return;
+        (c.changeOrders || []).forEach(function(co){
+          if(co.coDueDate === dateStr){
+            var coValue = (Number(co.materialPrice)||0) + (Number(co.laborPrice)||0) + (Number(co.tax)||0);
+            var fulfilled = !!(co.description && co.description.trim() && coValue > 0 && co.timestamp);
+            var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · " + esc(co.num);
+            bubbles += '<button type="button" class="cal-bubble ' + (fulfilled ? "done" : "pending") + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
+          }
+        });
+      });
+
+      // Version due dates (V2 and later only — V1 uses the card's main bid due date above).
+      cards.forEach(function(c){
+        if(isArchived(c)) return;
+        (c.estimateVersions || []).forEach(function(ver, vi){
+          if(vi === 0) return;
+          if(ver.dueDate === dateStr){
+            var idx2 = COLUMNS.findIndex(function(col){ return col.key === c.status; });
+            var pastEstimating2 = idx2 >= estimateCompleteIdx;
+            var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · V" + (vi+1);
+            bubbles += '<button type="button" class="cal-bubble ' + (pastEstimating2 ? "done" : "pending") + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
+          }
+        });
+      });
+
+      cellsHtml += '<div class="cal-day' + (dateStr === todayStr ? " today" : "") + '"><div class="cal-daynum">' + d + '</div>' + bubbles + '</div>';
+    }
+
+    cal.innerHTML =
+      '<div class="cal-head">' +
+        '<button class="btn ghost" id="calBackBtn">← Back to Card view</button>' +
+        '<div class="cal-nav">' +
+          '<button class="btn small" id="calPrevBtn">‹</button>' +
+          '<span class="cal-month-label">' + monthLabel + '</span>' +
+          '<button class="btn small" id="calNextBtn">›</button>' +
+          '<button class="btn small" id="calRefreshBtn" title="Refresh">🔄</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cal-weekdays">' + ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(function(w){ return '<div>' + w + '</div>'; }).join("") + '</div>' +
+      '<div class="cal-grid">' + cellsHtml + '</div>';
+
+    cal.querySelector("#calBackBtn").addEventListener("click", showBoard);
+    cal.querySelector("#calPrevBtn").addEventListener("click", function(){ calMonthOffset--; renderCalendar(); });
+    cal.querySelector("#calNextBtn").addEventListener("click", function(){ calMonthOffset++; renderCalendar(); });
+    cal.querySelector("#calRefreshBtn").addEventListener("click", function(){ renderCalendar(); toast("Calendar refreshed"); });
+    cal.querySelectorAll("[data-open-card]").forEach(function(btn){
+      btn.addEventListener("click", function(){ openDetail(btn.dataset.openCard); });
+    });
+  }
+
+  function renderCardEl(card){
+    var el = document.createElement("div");
+    el.className = "card";
+    el.style.setProperty("--stage-color", stageColor(card.status));
+    el.draggable = true;
+    el.dataset.id = card.id;
+
+    var divTags = [];
+    if(card.divisions.scs) divTags.push("SCS");
+    if(card.divisions.security) divTags.push("SEC");
+    if(card.divisions.av) divTags.push("AV");
+
+    var dueHtml = "";
+    if(card.bidDueDate){
+      var due = new Date(card.bidDueDate + "T" + (card.bidDueTime || "17:00"));
+      var overdue = due < new Date() && card.status === "opportunity";
+      dueHtml = '<span class="due ' + (overdue ? "overdue" : "") + '">Bid due ' + esc(card.bidDueDate) + (card.bidDueTime ? " " + esc(card.bidDueTime) : "") + '</span>';
+    }
+
+    var pmBar = "";
+    if(["project_created","project_in_progress","project_complete"].indexOf(card.status) !== -1){
+      pmBar = '<div class="pmbar"><i style="width:' + (Number(card.pm.percentComplete)||0) + '%"></i></div>';
+    }
+
+    el.innerHTML =
+      '<div class="pn"><span>' + esc(card.id) + '</span><span class="divisions">' +
+        divTags.map(function(t){ return '<span>' + t + '</span>'; }).join("") +
+      '</span></div>' +
+      '<div class="name">' + esc(card.projectName || "Untitled project") + '</div>' +
+      '<div class="customer">' + esc(card.projectCustomer || "—") + '</div>' +
+      '<div class="foot"><span class="value">' + money(totalValue(card)) + '</span>' + dueHtml + '</div>' +
+      pmBar;
+
+    el.addEventListener("dragstart", function(e){
+      e.dataTransfer.setData("text/plain", card.id);
+      el.classList.add("dragging");
+    });
+    el.addEventListener("dragend", function(){ el.classList.remove("dragging"); });
+    el.addEventListener("click", function(){ openDetail(card.id); });
+
+    return el;
+  }
+
+  function moveCard(id, newStatus){
+    var card = cards.find(function(c){ return c.id === id; });
+    if(!card || card.status === newStatus) return;
+    card.status = newStatus;
+    card.history.push({status:newStatus, at:new Date().toISOString(), by:getUser()});
+    saveCards();
+    renderBoard();
+    // If this card's detail view happens to be open, refresh its contents in place —
+    // don't reopen the modal and don't reset whichever tab the user was on.
+    if(activeDetailId === id) renderDetail();
+  }
+
+  /* ---------------- Alerts UI ---------------- */
+  function renderAlerts(){
+    var list = document.getElementById("alertsList");
+    var dot = document.getElementById("alertDot");
+    var unread = alerts.filter(function(a){ return !a.read; }).length;
+    dot.style.display = unread ? "flex" : "none";
+    dot.textContent = unread;
+
+    if(!alerts.length){
+      list.innerHTML = '<div class="alert-empty">No alerts yet.</div>';
+      return;
+    }
+    list.innerHTML = alerts.slice(0,25).map(function(a){
+      return '<div class="alert-item"><div>' + esc(a.message) + '</div>' +
+        '<div class="t">' + new Date(a.timestamp).toLocaleString() + '</div></div>';
+    }).join("");
+  }
+
+  document.getElementById("bellBtn").addEventListener("click", function(){
+    var panel = document.getElementById("alertsPanel");
+    panel.classList.toggle("open");
+    if(panel.classList.contains("open")){
+      alerts.forEach(function(a){ a.read = true; });
+      saveAlerts();
+      renderAlerts();
+    }
+  });
+  document.addEventListener("click", function(e){
+    var wrap = document.querySelector(".bell-wrap");
+    if(!wrap.contains(e.target)) document.getElementById("alertsPanel").classList.remove("open");
+  });
+
+  /* ---------------- New card modal ---------------- */
+  function openOverlay(id){ document.getElementById(id).classList.add("open"); }
+  function closeOverlay(id){
+    document.getElementById(id).classList.remove("open");
+    if(id === "detailOverlay") activeDetailId = null;
+  }
+
+  document.querySelectorAll("[data-close]").forEach(function(btn){
+    btn.addEventListener("click", function(){ closeOverlay(btn.dataset.close); });
+  });
+
+  document.getElementById("f_bidDueTime").innerHTML = timeOptionsHtml("");
+
+  var formDirectCustomers = [];
+  function renderFormDirectCustomers(){
+    var wrap = document.getElementById("directCustomersContainer");
+    wrap.innerHTML = formDirectCustomers.map(function(val, i){
+      return '<div class="inline-row" style="margin-bottom:6px;">' +
+        '<input type="text" class="compact-input" style="flex:1;" data-dc-index="' + i + '" value="' + esc(val) + '" placeholder="Contractor or customer name">' +
+        (formDirectCustomers.length > 1 ? '<button type="button" class="miniremove" data-dc-remove="' + i + '">Remove</button>' : '') +
+      '</div>';
+    }).join("");
+    wrap.querySelectorAll("[data-dc-index]").forEach(function(el){
+      el.addEventListener("input", function(){ formDirectCustomers[Number(el.dataset.dcIndex)] = el.value; });
+    });
+    wrap.querySelectorAll("[data-dc-remove]").forEach(function(el){
+      el.addEventListener("click", function(){
+        formDirectCustomers.splice(Number(el.dataset.dcRemove), 1);
+        renderFormDirectCustomers();
+      });
+    });
+  }
+  document.getElementById("addDirectCustomerBtn").addEventListener("click", function(){
+    formDirectCustomers.push("");
+    renderFormDirectCustomers();
+  });
+
+  document.getElementById("newCardBtn").addEventListener("click", function(){
+    ["f_projectName","f_address","f_projectCustomer","f_bidDueDate","f_salesperson"]
+      .forEach(function(id){ document.getElementById(id).value = ""; });
+    document.getElementById("f_bidDueTime").value = "";
+    document.getElementById("f_div_scs").checked = false;
+    document.getElementById("f_div_security").checked = false;
+    document.getElementById("f_div_av").checked = false;
+    formDirectCustomers = [""];
+    renderFormDirectCustomers();
+    openOverlay("newCardOverlay");
+    document.getElementById("f_projectName").focus();
+  });
+
+  document.getElementById("saveNewCardBtn").addEventListener("click", function(){
+    var projectName = document.getElementById("f_projectName").value.trim();
+    if(!projectName){
+      toast("Project name is required");
+      document.getElementById("f_projectName").focus();
+      return;
+    }
+    var card = makeCard({
+      projectName: projectName,
+      address: document.getElementById("f_address").value.trim(),
+      projectCustomer: document.getElementById("f_projectCustomer").value.trim(),
+      directCustomers: formDirectCustomers.filter(function(v){ return v.trim(); }).map(function(v){ return {name:v.trim()}; }),
+      salesperson: document.getElementById("f_salesperson").value.trim(),
+      divisions: {
+        scs: document.getElementById("f_div_scs").checked,
+        security: document.getElementById("f_div_security").checked,
+        av: document.getElementById("f_div_av").checked
+      },
+      bidDueDate: document.getElementById("f_bidDueDate").value,
+      bidDueTime: document.getElementById("f_bidDueTime").value
+    });
+    cards.push(card);
+    saveCards();
+    renderBoard();
+    closeOverlay("newCardOverlay");
+    toast("Created " + card.id + " — " + card.projectName);
+  });
+
+  /* ---------------- Detail modal ---------------- */
+  // Which tab is most relevant to work on for each stage of the pipeline.
+  var DEFAULT_TAB_BY_STATUS = {
+    opportunity:          "overview",
+    estimate_in_progress: "estimating",
+    estimate_complete:    "estimating",
+    estimate_submitted:   "estimating",
+    project_created:      "project",
+    project_in_progress:  "pm",
+    project_complete:     "closeout",
+    final_invoiced:       "closeout",
+    project_closed:       "closeout"
+  };
+
+  function openDetail(id){
+    activeDetailId = id;
+    var c = cards.find(function(x){ return x.id === id; });
+    activeTab = (c && isArchived(c)) ? "hla" : ((c && DEFAULT_TAB_BY_STATUS[c.status]) || "overview");
+    activeEstimateVersion = (c && c.estimateVersions && c.estimateVersions.length) ? c.estimateVersions.length - 1 : 0;
+    collapsedCO = {};
+    renderDetail();
+    openOverlay("detailOverlay");
+  }
+
+  function card(){ return cards.find(function(c){ return c.id === activeDetailId; }); }
+
+  function bindInputs(container){
+    container.querySelectorAll("[data-path]").forEach(function(el){
+      var isMoney = el.classList.contains("money-input");
+      var evt = (el.tagName === "SELECT" || el.type === "checkbox" || el.type === "date" || el.type === "time") ? "change" : "input";
+      el.addEventListener(evt, function(){
+        var c = card(); if(!c) return;
+        var val;
+        if(el.type === "checkbox") val = el.checked;
+        else if(isMoney) val = parseMoney(el.value);
+        else if(el.type === "number") val = (el.value === "" ? 0 : Number(el.value));
+        else val = el.value;
+        setPath(c, el.dataset.path, val);
+        saveCards();
+        // light re-render for things that affect summary/board without losing focus on text fields
+        if(el.dataset.path === "contractAmount" || el.dataset.path.indexOf("changeOrders") === 0 || el.dataset.path === "pm.percentComplete"){
+          updateSummaryBar();
+          renderBoard();
+        } else {
+          renderBoard();
+        }
+      });
+      if(isMoney){
+        // Show a plain editable number on focus, reformat with $ and commas on blur.
+        el.addEventListener("focus", function(){
+          var raw = parseMoney(el.value);
+          el.value = raw ? String(raw) : "";
+        });
+        el.addEventListener("blur", function(){
+          el.value = money(parseMoney(el.value));
+        });
+      }
+    });
+  }
+
+  // Applies the same focus/blur formatting to money inputs that aren't bound via data-path
+  // (e.g. change-order rows, which only commit on their own Save button).
+  function wireMoneyFormatting(host){
+    host.querySelectorAll(".money-input").forEach(function(el){
+      if(el.dataset.path) return; // already handled by bindInputs above
+      el.addEventListener("focus", function(){
+        var raw = parseMoney(el.value);
+        el.value = raw ? String(raw) : "";
+      });
+      el.addEventListener("blur", function(){
+        el.value = money(parseMoney(el.value));
+      });
+    });
+  }
+
+  function updateSummaryBar(){
+    var c = card(); if(!c) return;
+    var box = document.getElementById("summaryBar");
+    if(box) box.innerHTML = summaryBarHtml(c);
+  }
+
+  function summaryBarHtml(c){
+    var coTotal = (c.changeOrders||[]).reduce(function(s,co){ return s+(Number(co.materialPrice)||0)+(Number(co.laborPrice)||0)+(Number(co.tax)||0); },0);
+    return '<div>Contract amount<strong>' + money(c.contractAmount) + '</strong></div>' +
+      '<div>Change orders<strong>' + money(coTotal) + '</strong></div>' +
+      '<div>Total value<strong>' + money(totalValue(c)) + '</strong></div>' +
+      '<div>% complete<strong>' + (Number(c.pm.percentComplete)||0) + '%</strong></div>';
+  }
+
+  function renderDetail(){
+    var c = card();
+    var modal = document.getElementById("detailModal");
+    if(!c){ modal.innerHTML = ""; return; }
+
+    var overlayEl = document.getElementById("detailOverlay");
+    var overlayScrollTop = overlayEl.scrollTop;
+    var prevBody = modal.querySelector(".modal-body");
+    var scrollTop = prevBody ? prevBody.scrollTop : 0;
+
+    var idx = COLUMNS.findIndex(function(col){ return col.key === c.status; });
+    var prevKey = idx > 0 ? COLUMNS[idx-1].key : null;
+    var nextKey = idx < COLUMNS.length-1 ? COLUMNS[idx+1].key : null;
+
+    modal.innerHTML =
+      '<div class="modal-head">' +
+        '<div>' +
+          '<h2>' + esc(c.projectName || "Untitled project") + '</h2>' +
+          '<div class="sub">' + esc(c.id) + ' &nbsp;·&nbsp; <span class="stage-pill" style="--stage-color:' + stageColor(c.status) + '">' + esc(stageLabel(c.status)) + '</span>' +
+            (isArchived(c) ? ' &nbsp;·&nbsp; <span class="stage-pill" style="--stage-color:' + hlaColor(c.hla.status) + '">' + esc(hlaLabel(c.hla.status)) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<button class="close-x" data-close="detailOverlay">✕</button>' +
+      '</div>' +
+      '<div class="modal-body">' +
+        '<div class="value-summary" id="summaryBar">' + summaryBarHtml(c) + '</div>' +
+        '<div class="tabs" id="tabBar"></div>' +
+        '<div id="panelHost"></div>' +
+      '</div>' +
+      '<div class="modal-foot">' +
+        '<div>' +
+          '<button class="btn small" id="prevStageBtn" ' + (prevKey ? "" : "disabled") + '>◀ Move to ' + (prevKey ? esc(stageLabel(prevKey)) : "—") + '</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button class="btn small danger" id="deleteCardBtn">Delete card</button>' +
+          '<button class="btn small primary" id="nextStageBtn" ' + (nextKey ? "" : "disabled") + '>Move to ' + (nextKey ? esc(stageLabel(nextKey)) : "—") + ' ▶</button>' +
+        '</div>' +
+      '</div>';
+
+    modal.querySelector('[data-close="detailOverlay"]').addEventListener("click", function(){ closeOverlay("detailOverlay"); });
+
+    document.getElementById("prevStageBtn").addEventListener("click", function(){
+      if(prevKey){ moveCard(c.id, prevKey); }
+    });
+    document.getElementById("nextStageBtn").addEventListener("click", function(){
+      if(nextKey){ moveCard(c.id, nextKey); }
+    });
+    document.getElementById("deleteCardBtn").addEventListener("click", function(){
+      if(confirm("Delete " + c.id + " — " + c.projectName + "? This cannot be undone.")){
+        cards = cards.filter(function(x){ return x.id !== c.id; });
+        deleteCardRemote(c.id);
+        saveCards();
+        renderBoard();
+        closeOverlay("detailOverlay");
+      }
+    });
+
+    var tabs = [
+      {key:"overview", label:"Overview"},
+      {key:"estimating", label:"Estimating"},
+      {key:"project", label:"Project Setup"},
+      {key:"pm", label:"PM & Billing"},
+      {key:"co", label:"Change Orders"},
+      {key:"closeout", label:"Closeout"},
+      {key:"hla", label:"H/L/A"}
+    ];
+    var tabBar = document.getElementById("tabBar");
+    tabBar.innerHTML = tabs.map(function(t){
+      return '<button class="tab ' + (t.key===activeTab?"active":"") + '" data-tab="' + t.key + '">' + t.label + '</button>';
+    }).join("");
+    tabBar.querySelectorAll(".tab").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        activeTab = btn.dataset.tab;
+        renderDetail();
+      });
+    });
+
+    var host = document.getElementById("panelHost");
+    host.innerHTML = panelHtml(activeTab, c);
+    bindInputs(host);
+    wireMoneyFormatting(host);
+    wireDynamicSections(host, c);
+
+    var newBody = modal.querySelector(".modal-body");
+    if(newBody) newBody.scrollTop = scrollTop;
+    overlayEl.scrollTop = overlayScrollTop;
+  }
+
+  function panelHtml(tab, c){
+    if(tab === "overview") return overviewPanel(c);
+    if(tab === "estimating") return estimatingPanel(c);
+    if(tab === "project") return projectPanel(c);
+    if(tab === "pm") return pmPanel(c);
+    if(tab === "co") return coPanel(c);
+    if(tab === "closeout") return closeoutPanel(c);
+    if(tab === "hla") return hlaPanel(c);
+    return "";
+  }
+
+  function overviewPanel(c){
+    return '' +
+      '<p class="section-title">Bid instructions</p>' +
+      '<div class="notes-list" id="bidInstructionsList">' + bidInstructionsHtml(c) + '</div>' +
+      '<div class="field"><textarea id="newBidInstructionText" placeholder="Add a bid instruction…"></textarea></div>' +
+      '<button class="btn small primary" id="addBidInstructionBtn" style="margin-bottom:18px;">💾 Save instruction</button>' +
+
+      '<div class="field"><label>Project name</label><input type="text" data-path="projectName" value="' + esc(c.projectName) + '"></div>' +
+      '<div class="field"><label>Address</label><input type="text" data-path="address" value="' + esc(c.address) + '"></div>' +
+      '<div class="field"><label>Project customer</label><input type="text" data-path="projectCustomer" value="' + esc(c.projectCustomer) + '"></div>' +
+      '<div class="field"><label>Direct customer(s)</label>' +
+        '<div id="directCustomersList">' + directCustomersHtml(c) + '</div>' +
+        '<button class="add-row-btn" id="addDirectCustomerBtnDetail">+ Add direct customer</button>' +
+      '</div>' +
+      '<div class="field"><label>Divisions</label><div class="checks">' +
+        '<label class="checkline"><input type="checkbox" data-path="divisions.scs" ' + (c.divisions.scs?"checked":"") + '> SCS</label>' +
+        '<label class="checkline"><input type="checkbox" data-path="divisions.security" ' + (c.divisions.security?"checked":"") + '> Security</label>' +
+        '<label class="checkline"><input type="checkbox" data-path="divisions.av" ' + (c.divisions.av?"checked":"") + '> AV</label>' +
+      '</div></div>' +
+      '<div class="field"><label>Possible subcontractor</label>' +
+        '<div id="subcontractorsList">' + subcontractorsHtml(c) + '</div>' +
+        '<button class="add-row-btn" id="addSubcontractorBtn">+ Add subcontractor</button>' +
+      '</div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>Bid due date</label><input type="date" data-path="bidDueDate" value="' + esc(c.bidDueDate) + '"></div>' +
+        '<div class="field"><label>Bid due time</label><select data-path="bidDueTime">' + timeOptionsHtml(c.bidDueTime) + '</select></div>' +
+      '</div>' +
+      '<div class="field"><label>Salesperson</label><input type="text" data-path="salesperson" value="' + esc(c.salesperson) + '"></div>';
+  }
+
+  function subcontractorsHtml(c){
+    if(!c.subcontractors.length) return '';
+    return c.subcontractors.map(function(sub, i){
+      return '<div class="inline-row" data-row-index="' + i + '" style="margin-bottom:6px;">' +
+        '<select class="compact-input" style="flex:0 0 110px;" data-field="division">' +
+          ['SCS','Security','AV'].map(function(o){ return '<option value="'+o+'"' + (sub.division===o?' selected':'') + '>'+o+'</option>'; }).join('') +
+        '</select>' +
+        '<input type="text" class="compact-input" style="flex:1;" data-field="info" value="' + esc(sub.info) + '" placeholder="Company, contact, number, email">' +
+        '<button class="miniremove" data-remove-sub="' + i + '">Remove</button>' +
+      '</div>';
+    }).join("");
+  }
+
+  function bidInstructionsHtml(c){
+    if(!c.bidInstructions.length) return '<div class="note-empty">No bid instructions yet.</div>';
+    return c.bidInstructions.slice().reverse().map(function(n){
+      return '<div class="note-item">' + esc(n.text) +
+        '<div class="meta">' + esc(n.user || "Unknown") + ' — ' + new Date(n.timestamp).toLocaleString() + '</div></div>';
+    }).join("");
+  }
+
+  function directCustomersHtml(c){
+    if(!c.directCustomers.length) return '<div class="note-empty">No direct customers added yet.</div>';
+    return c.directCustomers.map(function(dc, i){
+      return '<div class="inline-row" data-row-index="' + i + '" style="margin-bottom:6px;">' +
+        '<input type="text" class="compact-input" style="flex:1;" data-field="name" value="' + esc(dc.name) + '" placeholder="Contractor or customer name">' +
+        '<button class="miniremove" data-remove-dc="' + i + '">Remove</button>' +
+      '</div>';
+    }).join("");
+  }
+
+  function estimatingPanel(c){
+    var ec = c.estimateComplete;
+    var versions = c.estimateVersions;
+    if(activeEstimateVersion > versions.length - 1) activeEstimateVersion = versions.length - 1;
+    if(activeEstimateVersion < 0) activeEstimateVersion = 0;
+    var v = versions[activeEstimateVersion];
+
+    var subtabsHtml = versions.map(function(ver, i){
+      var label = "V" + (i+1) + (ver.stage ? " · " + esc(ver.stage) : "");
+      return '<button class="subtab ' + (i===activeEstimateVersion?"active":"") + '" data-vtab="' + i + '">' + label + '</button>';
+    }).join("") + '<button class="subtab add" id="addVersionBtn">+ New version</button>';
+
+    return '' +
+      '<p class="section-title">Estimate versions</p>' +
+      '<div class="subtabs" id="versionTabs">' + subtabsHtml + '</div>' +
+      '<div class="subcard">' +
+        '<div class="inline-row">' +
+          '<div class="field" style="flex:1 1 120px;"><label>Estimator</label><input type="text" data-vfield="estimator" value="' + esc(v.estimator) + '"></div>' +
+          '<div class="field" style="flex:0 0 auto;"><label>Timestamp</label>' +
+            '<div class="inline-row" style="gap:8px;">' +
+              '<button type="button" class="btn small" id="stampVersionBtn">Stamp now</button>' +
+              '<span style="font-size:11.5px;color:var(--ink-soft);">' + (v.timestamp ? esc(new Date(v.timestamp).toLocaleString()) : "not stamped") + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="field" style="flex:1 1 130px;"><label>Stage</label><input type="text" list="stageOptions" data-vfield="stage" value="' + esc(v.stage) + '" placeholder="DD, Budgetary, Final…"></div>' +
+        '</div>' +
+        (activeEstimateVersion > 0 ?
+          '<div class="field" style="max-width:200px;"><label>Due date (this version)</label><input type="date" data-vfield="dueDate" value="' + esc(v.dueDate) + '"></div>'
+          : '') +
+        (versions.length > 1 ? '<button class="miniremove" id="removeVersionBtn">Remove this version</button>' : '') +
+      '</div>' +
+      '<datalist id="stageOptions"><option value="DD"><option value="Budgetary"><option value="Final"></datalist>' +
+
+      '<p class="section-title" style="margin-top:18px;">Estimate complete</p>' +
+      '<div class="inline-row">' +
+        '<div class="field" style="flex:1 1 110px;"><label>Material</label><input type="text" class="money-input" data-path="estimateComplete.materialPrice" value="' + money(ec.materialPrice||0) + '"></div>' +
+        '<div class="field" style="flex:1 1 110px;"><label>Labor</label><input type="text" class="money-input" data-path="estimateComplete.laborPrice" value="' + money(ec.laborPrice||0) + '"></div>' +
+        '<div class="field" style="flex:1 1 90px;"><label>Tax</label><input type="text" class="money-input" data-path="estimateComplete.tax" value="' + money(ec.tax||0) + '"></div>' +
+        '<div class="field" style="flex:1 1 80px;"><label>Hours</label><input type="number" step="0.5" data-path="estimateComplete.laborHours" value="' + Number(ec.laborHours||0) + '"></div>' +
+      '</div>' +
+      '<button class="btn small" id="markEstCompleteBtn">Mark estimate complete &amp; alert ' + esc(c.salesperson || "salesperson") + '</button>' +
+      (ec.alertSent ? '<div class="note-empty">Alert sent ' + new Date(ec.completedAt).toLocaleString() + '</div>' : '') +
+
+      '<p class="section-title" style="margin-top:18px;">Estimate submitted to</p>' +
+      '<div id="submittedList">' + submittedListHtml(c) + '</div>' +
+      '<button class="add-row-btn" id="addSubmittedBtn">+ Add recipient</button>';
+  }
+
+  function submittedListHtml(c){
+    if(!c.submittedTo.length) return '<div class="note-empty">No submissions logged yet.</div>';
+    return c.submittedTo.map(function(s, i){
+      return '<div class="subcard" data-row-index="' + i + '">' +
+        '<div class="subhead"><span class="badge">#' + (i+1) + '</span><button class="miniremove" data-remove-submitted="' + i + '">Remove</button></div>' +
+        '<div class="row2">' +
+          '<div class="field"><label>Submitted to</label><input type="text" data-field="name" value="' + esc(s.name) + '"></div>' +
+          '<div class="field"><label>Date</label><input type="date" data-field="date" value="' + esc(s.date) + '"></div>' +
+        '</div>' +
+        '<button class="btn small primary" data-save-submitted="' + i + '">💾 Save</button>' +
+      '</div>';
+    }).join("");
+  }
+
+  function projectPanel(c){
+    var pc = c.projectCreated;
+    return '' +
+      '<div class="row2">' +
+        '<div class="field"><label>Winning contractor / customer</label><input type="text" data-path="projectCreated.winningContractor" value="' + esc(pc.winningContractor) + '"></div>' +
+        '<div class="field"><label>Contract amount</label><input type="text" class="money-input" data-path="contractAmount" value="' + money(c.contractAmount||0) + '"></div>' +
+      '</div>' +
+      '<div class="field"><label>Project manager</label><input type="text" data-path="projectCreated.pmName" value="' + esc(pc.pmName) + '"></div>' +
+
+      '<div class="field"><label>Contacts</label>' +
+        '<div id="contactsList">' + contactsListHtml(c) + '</div>' +
+        '<button class="add-row-btn" id="addContactBtn">+ Add contact</button>' +
+      '</div>' +
+
+      '<div class="field"><label>Parking</label><input type="text" data-path="projectCreated.parking" value="' + esc(pc.parking) + '"></div>' +
+      '<div class="field"><label>Work hours</label><input type="text" data-path="projectCreated.workHours" value="' + esc(pc.workHours) + '"></div>' +
+      '<div class="field"><label>Access method</label><input type="text" data-path="projectCreated.accessMethod" value="' + esc(pc.accessMethod) + '"></div>' +
+      '<div class="field"><label>Additional information</label><textarea data-path="projectCreated.additionalInfo">' + esc(pc.additionalInfo) + '</textarea></div>' +
+
+      '<div class="row2">' +
+        '<div class="field"><label class="checkline"><input type="checkbox" data-path="projectCreated.permitRequired" ' + (pc.permitRequired?"checked":"") + '> Permit required</label></div>' +
+        '<div class="field"><label>Permit number</label><input type="text" data-path="projectCreated.permitNumber" value="' + esc(pc.permitNumber) + '"></div>' +
+      '</div>' +
+
+      '<div class="field"><label>Links</label>' +
+        '<div id="linksList">' + linksListHtml(c) + '</div>' +
+        '<button class="add-row-btn" id="addLinkBtn">+ Add link</button>' +
+      '</div>' +
+      '<button class="btn small primary" id="saveProjectBtn" style="margin-top:4px;">💾 Save</button>';
+  }
+
+  function contactsListHtml(c){
+    var list = c.projectCreated.contacts;
+    if(!list.length) return '<div class="note-empty">No contacts added yet.</div>';
+    return list.map(function(ct, i){
+      return '<div class="inline-row" data-row-index="' + i + '" style="margin-bottom:6px;">' +
+        '<input type="text" class="compact-input" style="flex:1;" data-field="name" value="' + esc(ct.name) + '" placeholder="Name — role — phone">' +
+        '<button class="miniremove" data-remove-contact="' + i + '">Remove</button>' +
+      '</div>';
+    }).join("");
+  }
+
+  function linksListHtml(c){
+    var list = c.projectCreated.links;
+    if(!list.length) return '<div class="note-empty">No links added yet.</div>';
+    return list.map(function(l, i){
+      var hasUrl = !!(l.url && l.url.trim());
+      var label = esc(l.title || "Open") + " ↗";
+      return '<div class="subcard" data-row-index="' + i + '" style="padding:8px 10px;">' +
+        '<div class="inline-row">' +
+          '<input type="text" class="compact-input" style="flex:1;" data-field="title" value="' + esc(l.title) + '" placeholder="Link title">' +
+          '<input type="url" class="compact-input" style="flex:2;" data-field="url" value="' + esc(l.url) + '" placeholder="https://…">' +
+          (hasUrl
+            ? '<a class="btn small" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + label + '</a>'
+            : '<button type="button" class="btn small" disabled>' + label + '</button>') +
+          '<button class="miniremove" data-remove-link="' + i + '">Remove</button>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function pmPanel(c){
+    return '' +
+      '<p class="section-title">Progress</p>' +
+      '<div class="field"><label>Amount complete (%)</label><input type="number" min="0" max="100" data-path="pm.percentComplete" value="' + Number(c.pm.percentComplete||0) + '"></div>' +
+
+      '<p class="section-title" style="margin-top:16px;">Billing schedule</p>' +
+      '<div id="billingList">' + billingListHtml(c) + '</div>' +
+      '<button class="add-row-btn" id="addBillingBtn">+ Add billing month</button>' +
+
+      '<p class="section-title" style="margin-top:20px;">PM notes</p>' +
+      '<div class="notes-list" id="notesList">' + notesListHtml(c) + '</div>' +
+      '<div class="field"><textarea id="newNoteText" placeholder="Add a note…"></textarea></div>' +
+      '<button class="btn small primary" id="addNoteBtn">💾 Save note</button>';
+  }
+
+  function billingListHtml(c){
+    if(!c.pm.billing.length) return '<div class="note-empty">No billing months recorded yet.</div>';
+    return c.pm.billing.map(function(b, i){
+      return '<div class="subcard" data-row-index="' + i + '" style="padding:8px 10px;">' +
+        '<div class="inline-row">' +
+          '<span class="badge">' + (i+1) + '</span>' +
+          '<input type="text" class="compact-input" style="flex:2;min-width:100px;" data-field="month" value="' + esc(b.month) + '" placeholder="e.g. May 2026">' +
+          '<input type="number" min="0" max="100" class="compact-input" style="flex:0 0 64px;" data-field="percent" value="' + Number(b.percent||0) + '">' +
+          '<span style="font-size:12px;color:var(--ink-soft);">% billable</span>' +
+          '<button class="btn small primary" data-save-billing="' + i + '">💾 Save</button>' +
+          '<button class="btn small" data-alert-billing="' + i + '" title="Alert accounting">🔔 Alert accounting</button>' +
+          '<button class="miniremove" data-remove-billing="' + i + '">Remove</button>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function notesListHtml(c){
+    if(!c.pm.notes.length) return '<div class="note-empty">No notes yet.</div>';
+    return c.pm.notes.slice().reverse().map(function(n){
+      return '<div class="note-item">' + esc(n.text) +
+        '<div class="meta">' + esc(n.user || "Unknown") + ' — ' + new Date(n.timestamp).toLocaleString() + '</div></div>';
+    }).join("");
+  }
+
+  function coPanel(c){
+    return '' +
+      '<p class="section-title">Change orders</p>' +
+      '<div id="coList">' + coListHtml(c) + '</div>' +
+      '<button class="add-row-btn" id="addCoBtn">+ Add change order</button>';
+  }
+
+  function coListHtml(c){
+    if(!c.changeOrders.length) return '<div class="note-empty">No change orders yet.</div>';
+    return c.changeOrders.map(function(co, i){
+      var collapsed = !!collapsedCO[i];
+      var coValue = (Number(co.materialPrice)||0) + (Number(co.laborPrice)||0) + (Number(co.tax)||0);
+      var head = '<div class="subhead"><span class="badge">' + esc(co.num) + '</span>' +
+        '<div style="display:flex;gap:8px;align-items:center;">' +
+          '<button type="button" class="btn small" data-toggle-co="' + i + '">' + (collapsed ? "▸ Expand" : "▾ Collapse") + '</button>' +
+          '<button class="miniremove" data-remove-co="' + i + '">Remove</button>' +
+        '</div>' +
+      '</div>';
+
+      if(collapsed){
+        var summary = esc(co.description || "No description yet") + " — " + money(coValue) +
+          (co.approved ? " · ✅ Approved" : "") + (co.sent ? " · Sent" : "") + (co.billed ? " · Billed" : "");
+        return '<div class="subcard" data-row-index="' + i + '">' + head +
+          '<div style="font-size:12.5px;color:var(--ink-soft);">' + summary + '</div>' +
+        '</div>';
+      }
+
+      return '<div class="subcard" data-row-index="' + i + '">' + head +
+
+        '<div class="co-request-block">' +
+          '<p class="co-section-title">CO Request</p>' +
+          '<div class="field"><label>CO instructions</label><textarea data-field="coInstructions" placeholder="What was requested / needs pricing">' + esc(co.coInstructions) + '</textarea></div>' +
+          '<div class="field" style="max-width:200px;"><label>Due date</label><input type="date" data-field="coDueDate" value="' + esc(co.coDueDate) + '"></div>' +
+          '<button class="btn small primary" data-save-co-request="' + i + '">💾 Save request</button>' +
+        '</div>' +
+
+        '<hr class="co-divider">' +
+
+        '<div class="co-details-block">' +
+          '<p class="co-section-title">CO Details</p>' +
+          '<div class="field"><label>Description</label><input type="text" data-field="description" value="' + esc(co.description) + '" placeholder="e.g. Add AV cabling, install WAPs"></div>' +
+          '<div class="inline-row">' +
+            '<div class="field" style="flex:1 1 90px;"><label>Material</label><input type="text" class="money-input" data-field="materialPrice" value="' + money(co.materialPrice||0) + '"></div>' +
+            '<div class="field" style="flex:1 1 90px;"><label>Labor</label><input type="text" class="money-input" data-field="laborPrice" value="' + money(co.laborPrice||0) + '"></div>' +
+            '<div class="field" style="flex:1 1 80px;"><label>Tax</label><input type="text" class="money-input" data-field="tax" value="' + money(co.tax||0) + '"></div>' +
+            '<div class="field" style="flex:1 1 70px;"><label>Hours</label><input type="number" step="0.5" data-field="laborHours" value="' + Number(co.laborHours||0) + '"></div>' +
+          '</div>' +
+          '<div class="field" style="max-width:260px;"><label>Timestamp</label>' +
+            '<div class="inline-row" style="gap:8px;">' +
+              '<button type="button" class="btn small" data-stamp-co="' + i + '">Stamp now</button>' +
+              '<span style="font-size:11.5px;color:var(--ink-soft);">' + (co.timestamp ? esc(new Date(co.timestamp).toLocaleString()) : "not stamped") + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="inline-row" style="margin-top:6px;">' +
+            '<div class="field" style="flex:1 1 160px;"><label>Sent to</label><input type="text" data-field="sentTo" value="' + esc(co.sentTo) + '"></div>' +
+            '<label class="checkline" style="padding-bottom:9px;"><input type="checkbox" data-field="sent" data-co-checkbox="' + i + '" ' + (co.sent?"checked":"") + '> Sent</label>' +
+            '<label class="checkline" style="padding-bottom:9px;"><input type="checkbox" data-field="billed" data-co-checkbox="' + i + '" ' + (co.billed?"checked":"") + '> Billed</label>' +
+          '</div>' +
+          '<div class="inline-row" style="margin-top:6px;">' +
+            '<label class="checkline" style="padding-bottom:9px;"><input type="checkbox" data-field="approved" data-co-checkbox="' + i + '" ' + (co.approved?"checked":"") + '> Approved</label>' +
+            '<div class="field" style="flex:1 1 160px;"><label>Approved by</label><input type="text" data-field="approvedBy" value="' + esc(co.approvedBy) + '"></div>' +
+          '</div>' +
+          '<button class="btn small primary" data-save-co-details="' + i + '" style="margin-top:8px;">💾 Save details</button>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function closeoutPanel(c){
+    var pcm = c.projectComplete;
+    return '' +
+      '<p class="section-title">Project complete</p>' +
+      '<div class="field"><label>Date completed</label><input type="date" data-path="projectComplete.dateCompleted" value="' + esc(pcm.dateCompleted) + '"></div>' +
+      '<div class="checks" style="margin-bottom:14px;">' +
+        '<label class="checkline"><input type="checkbox" data-path="projectComplete.inspectionPassed" ' + (pcm.inspectionPassed?"checked":"") + '> Inspection passed</label>' +
+        '<label class="checkline"><input type="checkbox" data-path="projectComplete.testResults" ' + (pcm.testResults?"checked":"") + '> Test results</label>' +
+        '<label class="checkline"><input type="checkbox" data-path="projectComplete.asBuilts" ' + (pcm.asBuilts?"checked":"") + '> As-builts</label>' +
+      '</div>' +
+
+      '<p class="section-title">Final invoiced</p>' +
+      '<div class="checks" style="margin-bottom:14px;">' +
+        '<label class="checkline"><input type="checkbox" data-path="finalInvoiced.finalBilled" ' + (c.finalInvoiced.finalBilled?"checked":"") + '> Final billed</label>' +
+      '</div>' +
+
+      '<p class="section-title">Project closed</p>' +
+      '<div class="field"><label>Final comments</label><textarea data-path="projectClosed.finalComments">' + esc(c.projectClosed.finalComments) + '</textarea></div>';
+  }
+
+  function hlaPanel(c){
+    var h = c.hla || {status:"", reason:"", previousStatus:"", savedAt:null, savedBy:""};
+    return '' +
+      '<p class="section-title">Hold / Lost / Archive</p>' +
+      (h.status ? '<div class="note-empty">Currently: <strong style="color:' + hlaColor(h.status) + ';">' + esc(hlaLabel(h.status)) + '</strong> — set by ' + esc(h.savedBy || "Unknown") + (h.savedAt ? " on " + new Date(h.savedAt).toLocaleString() : "") + '. This card is hidden from the main board and calendar while it stays in this state.</div>' : '<div class="note-empty">This card is active and visible on the board.</div>') +
+      '<div class="field" style="margin-top:12px;"><label>Status</label>' +
+        '<select id="hlaStatusSelect">' +
+          '<option value=""' + (!h.status ? " selected" : "") + '>— Active — (keep on the board)</option>' +
+          '<option value="hold"' + (h.status==="hold" ? " selected" : "") + '>On Hold</option>' +
+          '<option value="lost"' + (h.status==="lost" ? " selected" : "") + '>Lost</option>' +
+          '<option value="archived"' + (h.status==="archived" ? " selected" : "") + '>Archived</option>' +
+        '</select>' +
+      '</div>' +
+      '<div class="field"><label>Notes — why is this moving?</label><textarea id="hlaNotesText" placeholder="Reason for hold / lost / archive">' + esc(h.reason) + '</textarea></div>' +
+      '<button class="btn small primary" id="saveHlaBtn">💾 Save</button>';
+  }
+
+  function wireDynamicSections(host, c){
+    // Project Setup — fields already save live; this gives an explicit confirmation
+    var saveProject = host.querySelector("#saveProjectBtn");
+    if(saveProject){
+      saveProject.addEventListener("click", function(){
+        saveCards();
+        toast("Project details saved");
+      });
+    }
+
+    // Hold / Lost / Archive — one Save button drives both directions
+    var saveHla = host.querySelector("#saveHlaBtn");
+    if(saveHla){
+      saveHla.addEventListener("click", function(){
+        var val = host.querySelector("#hlaStatusSelect").value;
+        var notes = host.querySelector("#hlaNotesText").value.trim();
+        if(!c.hla) c.hla = {status:"", reason:"", previousStatus:"", savedAt:null, savedBy:""};
+        if(val){
+          if(!c.hla.status) c.hla.previousStatus = c.status;
+          c.hla.status = val;
+          c.hla.reason = notes;
+          c.hla.savedAt = new Date().toISOString();
+          c.hla.savedBy = getUser() || "Unknown";
+          toast("Moved to " + hlaLabel(val));
+        } else {
+          c.status = c.hla.previousStatus || "opportunity";
+          c.hla.status = "";
+          c.hla.reason = notes;
+          c.hla.savedAt = new Date().toISOString();
+          c.hla.savedBy = getUser() || "Unknown";
+          toast("Card reactivated");
+        }
+        saveCards();
+        renderBoard();
+        if(document.getElementById("archiveView").style.display !== "none") renderArchive();
+        if(document.getElementById("calendarView").style.display !== "none") renderCalendar();
+        renderDetail();
+      });
+    }
+
+    // Estimate versions (sub-tabs inside the Estimating tab)
+    host.querySelectorAll("[data-vtab]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        activeEstimateVersion = Number(btn.dataset.vtab);
+        renderDetail();
+      });
+    });
+    var addVersionBtn = host.querySelector("#addVersionBtn");
+    if(addVersionBtn){
+      addVersionBtn.addEventListener("click", function(){
+        c.estimateVersions.push({id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:""});
+        activeEstimateVersion = c.estimateVersions.length - 1;
+        saveCards();
+        renderDetail();
+      });
+    }
+    var removeVersionBtn = host.querySelector("#removeVersionBtn");
+    if(removeVersionBtn){
+      removeVersionBtn.addEventListener("click", function(){
+        if(c.estimateVersions.length <= 1) return;
+        c.estimateVersions.splice(activeEstimateVersion, 1);
+        activeEstimateVersion = Math.max(0, activeEstimateVersion - 1);
+        saveCards();
+        renderDetail();
+      });
+    }
+    var stampBtn = host.querySelector("#stampVersionBtn");
+    if(stampBtn){
+      stampBtn.addEventListener("click", function(){
+        c.estimateVersions[activeEstimateVersion].timestamp = new Date().toISOString();
+        saveCards();
+        renderDetail();
+      });
+    }
+    host.querySelectorAll("[data-vfield]").forEach(function(el){
+      el.addEventListener("change", function(){
+        c.estimateVersions[activeEstimateVersion][el.dataset.vfield] = el.value;
+        saveCards();
+        renderDetail();
+      });
+    });
+
+    // Estimate complete -> alert
+    var markBtn = host.querySelector("#markEstCompleteBtn");
+    if(markBtn){
+      markBtn.addEventListener("click", function(){
+        c.estimateComplete.completedAt = new Date().toISOString();
+        c.estimateComplete.alertSent = true;
+        saveCards();
+        pushAlert(c.id, c.projectName, "Estimate complete for " + c.projectName + " (" + c.id + ") — notify " + (c.salesperson || "salesperson"));
+        toast("Alert sent");
+        renderDetail();
+      });
+    }
+
+    // Direct customers (Overview tab) — simple info fields, save on leaving the field
+    var addDcDetail = host.querySelector("#addDirectCustomerBtnDetail");
+    if(addDcDetail){
+      addDcDetail.addEventListener("click", function(){
+        c.directCustomers.push({name:""});
+        saveCards();
+        renderDetail();
+      });
+    }
+    host.querySelectorAll("#directCustomersList [data-field]").forEach(function(el){
+      el.addEventListener("change", function(){
+        var i = Number(el.closest("[data-row-index]").dataset.rowIndex);
+        c.directCustomers[i].name = el.value;
+        saveCards();
+      });
+    });
+    host.querySelectorAll("[data-remove-dc]").forEach(function(el){
+      el.addEventListener("click", function(){
+        c.directCustomers.splice(Number(el.dataset.removeDc), 1);
+        saveCards();
+        renderDetail();
+      });
+    });
+
+    // Possible subcontractors (Overview tab)
+    var addSub = host.querySelector("#addSubcontractorBtn");
+    if(addSub){
+      addSub.addEventListener("click", function(){
+        c.subcontractors.push({division:"SCS", info:""});
+        saveCards();
+        renderDetail();
+      });
+    }
+    host.querySelectorAll("#subcontractorsList [data-field]").forEach(function(el){
+      el.addEventListener("change", function(){
+        var i = Number(el.closest("[data-row-index]").dataset.rowIndex);
+        c.subcontractors[i][el.dataset.field] = el.value;
+        saveCards();
+      });
+    });
+    host.querySelectorAll("[data-remove-sub]").forEach(function(el){
+      el.addEventListener("click", function(){
+        c.subcontractors.splice(Number(el.dataset.removeSub), 1);
+        saveCards();
+        renderDetail();
+      });
+    });
+
+    // Contacts (Project Setup tab)
+    var addContact = host.querySelector("#addContactBtn");
+    if(addContact){
+      addContact.addEventListener("click", function(){
+        c.projectCreated.contacts.push({name:""});
+        saveCards();
+        renderDetail();
+      });
+    }
+    host.querySelectorAll("#contactsList [data-field]").forEach(function(el){
+      el.addEventListener("change", function(){
+        var i = Number(el.closest("[data-row-index]").dataset.rowIndex);
+        c.projectCreated.contacts[i].name = el.value;
+        saveCards();
+      });
+    });
+    host.querySelectorAll("[data-remove-contact]").forEach(function(el){
+      el.addEventListener("click", function(){
+        c.projectCreated.contacts.splice(Number(el.dataset.removeContact), 1);
+        saveCards();
+        renderDetail();
+      });
+    });
+
+    // Links (Project Setup tab) — re-render on change so the open-link button stays in sync
+    var addLink = host.querySelector("#addLinkBtn");
+    if(addLink){
+      addLink.addEventListener("click", function(){
+        c.projectCreated.links.push({title:"", url:""});
+        saveCards();
+        renderDetail();
+      });
+    }
+    host.querySelectorAll("#linksList [data-field]").forEach(function(el){
+      el.addEventListener("change", function(){
+        var i = Number(el.closest("[data-row-index]").dataset.rowIndex);
+        c.projectCreated.links[i][el.dataset.field] = el.value;
+        saveCards();
+        renderDetail();
+      });
+    });
+    host.querySelectorAll("[data-remove-link]").forEach(function(el){
+      el.addEventListener("click", function(){
+        c.projectCreated.links.splice(Number(el.dataset.removeLink), 1);
+        saveCards();
+        renderDetail();
+      });
+    });
+
+    // Helper: read the current input/checkbox values out of a row's container,
+    // keyed by each element's data-field name. Used by every explicit Save button below,
+    // so nothing in these log-style sections is written to storage until Save is clicked.
+    function readRow(rowEl, numericFields){
+      var out = {};
+      rowEl.querySelectorAll("[data-field]").forEach(function(el){
+        var field = el.dataset.field;
+        var val = el.type === "checkbox" ? el.checked : el.value;
+        if(numericFields && numericFields.indexOf(field) !== -1){
+          val = el.classList.contains("money-input") ? parseMoney(val) : (Number(val) || 0);
+        }
+        out[field] = val;
+      });
+      return out;
+    }
+
+    // Submitted-to rows
+    var addSub = host.querySelector("#addSubmittedBtn");
+    if(addSub){
+      addSub.addEventListener("click", function(){
+        c.submittedTo.push({name:"", date:""});
+        saveCards();
+        renderDetail();
+      });
+    }
+    host.querySelectorAll("[data-save-submitted]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = Number(btn.dataset.saveSubmitted);
+        var row = btn.closest(".subcard");
+        Object.assign(c.submittedTo[i], readRow(row));
+        saveCards();
+        toast("Submission saved");
+      });
+    });
+    host.querySelectorAll("[data-remove-submitted]").forEach(function(el){
+      el.addEventListener("click", function(){
+        c.submittedTo.splice(Number(el.dataset.removeSubmitted), 1);
+        saveCards();
+        renderDetail();
+      });
+    });
+
+    // Billing rows
+    var addBilling = host.querySelector("#addBillingBtn");
+    if(addBilling){
+      addBilling.addEventListener("click", function(){
+        c.pm.billing.push({month:"", percent:0});
+        saveCards();
+        renderDetail();
+      });
+    }
+    host.querySelectorAll("[data-save-billing]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = Number(btn.dataset.saveBilling);
+        var row = btn.closest(".subcard");
+        Object.assign(c.pm.billing[i], readRow(row, ["percent"]));
+        saveCards();
+        toast("Billing month saved");
+      });
+    });
+    host.querySelectorAll("[data-alert-billing]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = Number(btn.dataset.alertBilling);
+        var b = c.pm.billing[i];
+        pushAlert(c.id, c.projectName, "Billing ready — " + (b.month || "unlabeled month") + " (" + (Number(b.percent)||0) + "%) for " + c.projectName + " (" + c.id + ") — notify accounting");
+        toast("Alert sent to accounting");
+      });
+    });
+    host.querySelectorAll("[data-remove-billing]").forEach(function(el){
+      el.addEventListener("click", function(){
+        c.pm.billing.splice(Number(el.dataset.removeBilling), 1);
+        saveCards();
+        renderDetail();
+      });
+    });
+
+    // Notes — already commit on click, add a confirmation toast for consistency
+    var addNote = host.querySelector("#addNoteBtn");
+    if(addNote){
+      addNote.addEventListener("click", function(){
+        var ta = host.querySelector("#newNoteText");
+        var text = ta.value.trim();
+        if(!text) return;
+        c.pm.notes.push({text:text, user:getUser() || "Unknown", timestamp:new Date().toISOString()});
+        saveCards();
+        toast("Note saved");
+        renderDetail();
+      });
+    }
+
+    // Bid instructions (Overview tab) — same save-on-click log pattern as PM notes
+    var addBidInstruction = host.querySelector("#addBidInstructionBtn");
+    if(addBidInstruction){
+      addBidInstruction.addEventListener("click", function(){
+        var ta = host.querySelector("#newBidInstructionText");
+        var text = ta.value.trim();
+        if(!text) return;
+        c.bidInstructions.push({text:text, user:getUser() || "Unknown", timestamp:new Date().toISOString()});
+        saveCards();
+        toast("Bid instruction saved");
+        renderDetail();
+      });
+    }
+
+    // Change orders
+    var addCo = host.querySelector("#addCoBtn");
+    if(addCo){
+      addCo.addEventListener("click", function(){
+        var n = c.changeOrders.length + 1;
+        c.changeOrders.push({num:"CO" + n, coInstructions:"", coDueDate:"", description:"", materialPrice:0, laborPrice:0, tax:0, laborHours:0, timestamp:null, sent:false, sentTo:"", billed:false, approved:false, approvedBy:""});
+        saveCards();
+        renderBoard();
+        renderDetail();
+      });
+    }
+    host.querySelectorAll("[data-toggle-co]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = Number(btn.dataset.toggleCo);
+        collapsedCO[i] = !collapsedCO[i];
+        renderDetail();
+      });
+    });
+    // Checkboxes save immediately rather than waiting for the row's Save button.
+    host.querySelectorAll("[data-co-checkbox]").forEach(function(el){
+      el.addEventListener("change", function(){
+        var i = Number(el.dataset.coCheckbox);
+        var field = el.dataset.field;
+        c.changeOrders[i][field] = el.checked;
+        if(field === "approved" && el.checked && !c.changeOrders[i].approvedBy){
+          c.changeOrders[i].approvedBy = getUser() || "Unknown";
+        }
+        saveCards();
+        updateSummaryBar();
+        renderBoard();
+        renderDetail();
+      });
+    });
+    host.querySelectorAll("[data-save-co-request]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = Number(btn.dataset.saveCoRequest);
+        var block = btn.closest(".co-request-block");
+        Object.assign(c.changeOrders[i], readRow(block));
+        saveCards();
+        toast(c.changeOrders[i].num + " request saved");
+      });
+    });
+    host.querySelectorAll("[data-save-co-details]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = Number(btn.dataset.saveCoDetails);
+        var block = btn.closest(".co-details-block");
+        Object.assign(c.changeOrders[i], readRow(block, ["materialPrice","laborPrice","tax","laborHours"]));
+        saveCards();
+        updateSummaryBar();
+        renderBoard();
+        toast(c.changeOrders[i].num + " details saved");
+      });
+    });
+    host.querySelectorAll("[data-stamp-co]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = Number(btn.dataset.stampCo);
+        c.changeOrders[i].timestamp = new Date().toISOString();
+        saveCards();
+        renderDetail();
+      });
+    });
+    host.querySelectorAll("[data-remove-co]").forEach(function(el){
+      el.addEventListener("click", function(){
+        c.changeOrders.splice(Number(el.dataset.removeCo), 1);
+        // renumber
+        c.changeOrders.forEach(function(co, i){ co.num = "CO" + (i+1); });
+        saveCards();
+        updateSummaryBar();
+        renderBoard();
+        renderDetail();
+      });
+    });
+  }
+
+  /* ---------------- Export / Import ---------------- */
+  document.getElementById("calendarBtn").addEventListener("click", function(){
+    calMonthOffset = 0;
+    showCalendar();
+  });
+  document.getElementById("archiveBtn").addEventListener("click", showArchive);
+
+  document.getElementById("exportBtn").addEventListener("click", function(){
+    var blob = new Blob([JSON.stringify({cards:cards, alerts:alerts}, null, 2)], {type:"application/json"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "ci-project-dashboard-" + new Date().toISOString().slice(0,10) + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("importBtn").addEventListener("click", function(){
+    document.getElementById("importFile").click();
+  });
+  document.getElementById("importFile").addEventListener("change", function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try{
+        var data = JSON.parse(reader.result);
+        if(Array.isArray(data.cards)){
+          if(confirm("Import will replace all current cards on this device. Continue?")){
+            cards = data.cards;
+            alerts = data.alerts || [];
+            saveCards();
+            saveAlerts();
+            renderBoard();
+            renderAlerts();
+            toast("Import complete");
+          }
+        } else {
+          toast("File format not recognized");
+        }
+      }catch(err){
+        toast("Could not read that file");
+      }
+      e.target.value = "";
+    };
+    reader.readAsText(file);
+  });
+
+  /* ---------------- User field ---------------- */
+  var userInput = document.getElementById("currentUserInput");
+  userInput.value = getUser();
+  userInput.addEventListener("input", function(){ setUser(userInput.value); });
+
+  /* ---------------- Init ---------------- */
+  async function initApp(){
+    document.getElementById("board").innerHTML =
+      '<div style="padding:40px;text-align:center;color:var(--ink-soft);width:100%;">Loading projects…</div>';
+
+    var loadedCards = loadCardsFromCache();
+    var loadedAlerts = loadAlertsFromCache();
+
+    if(supabaseClient){
+      try {
+        loadedCards = await loadCardsRemote();
+        loadedAlerts = await loadAlertsRemote();
+      } catch(err){
+        console.error("Supabase load failed, falling back to the local cache", err);
+        toast("Couldn't reach the database — showing the last saved copy on this device");
+      }
+    }
+
+    cards = loadedCards;
+    alerts = loadedAlerts;
+    cards.forEach(migrateCard);
+    renderBoard();
+    renderAlerts();
+  }
+  initApp();
+})();
+</script>
+</body>
+</html>
