@@ -289,6 +289,21 @@
   .cal-bubble.done{background:rgba(63,125,88,.16);border-color:rgba(63,125,88,.4);color:var(--green);font-weight:600;}
   .cal-bubble.pending{background:rgba(201,130,14,.18);border-color:rgba(201,130,14,.45);color:var(--amber);font-weight:600;}
 
+  .login-screen{
+    position:fixed;inset:0;background:var(--paper);z-index:100;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .login-card{
+    width:100%;max-width:340px;background:var(--paper-raised);border:1px solid var(--line);
+    border-radius:10px;padding:28px 26px;box-shadow:0 20px 50px rgba(0,0,0,.12);
+  }
+  .login-mark{font-weight:800;font-size:18px;text-align:center;margin-bottom:4px;}
+  .login-sub{font-size:12.5px;color:var(--ink-soft);text-align:center;margin:0 0 18px;}
+  .login-error{
+    background:rgba(179,69,47,.1);border:1px solid rgba(179,69,47,.35);color:var(--red);
+    font-size:12.5px;border-radius:6px;padding:8px 10px;margin-bottom:12px;
+  }
+
   .toast-wrap{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center;}
   .toast{background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:7px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.2);}
 
@@ -300,14 +315,31 @@
 </head>
 <body>
 
-<header class="topbar">
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-mark">🗂️ CI Project Dashboard</div>
+    <p class="login-sub">Sign in to continue</p>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="loginUsername" placeholder="e.g. cbasham" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <div id="loginError" class="login-error" style="display:none;"></div>
+    <button class="btn primary" id="loginBtn" style="width:100%;justify-content:center;">Sign in</button>
+  </div>
+</div>
+
+<header class="topbar" id="appHeader" style="display:none;">
   <div class="brand">
     <span class="mark">🗂️ CI Project Dashboard</span>
     <span class="tag">Opportunity → Estimate → Project → Invoice</span>
   </div>
-  <div class="user-field">
-    Working as
-    <input id="currentUserInput" type="text" placeholder="Your name">
+  <div class="user-field" id="userField" style="display:none;">
+    Signed in as <strong id="signedInName" style="color:var(--ink);"></strong>
+    <button class="btn ghost small" id="logoutBtn">Log out</button>
   </div>
   <div class="bell-wrap">
     <button class="bell" id="bellBtn" title="Alerts">🔔<span class="dot" id="alertDot" style="display:none;">0</span></button>
@@ -328,7 +360,7 @@
 <div class="calendar" id="calendarView" style="display:none;"></div>
 <div class="calendar" id="archiveView" style="display:none;"></div>
 
-<footer class="app-foot">
+<footer class="app-foot" id="appFooter" style="display:none;">
   MVP — data lives in this browser only (localStorage). Use Export JSON to back up or hand off to a database/GitHub build.
 </footer>
 
@@ -536,8 +568,7 @@
     });
   }
 
-  function getUser(){ return localStorage.getItem(USER_KEY) || ""; }
-  function setUser(v){ localStorage.setItem(USER_KEY, v); }
+  function getUser(){ return currentUserName || "Unknown"; }
 
   /* ---------------- Helpers ---------------- */
   function uid(){ return Math.random().toString(36).slice(2,9); }
@@ -1981,10 +2012,113 @@
     reader.readAsText(file);
   });
 
-  /* ---------------- User field ---------------- */
-  var userInput = document.getElementById("currentUserInput");
-  userInput.value = getUser();
-  userInput.addEventListener("input", function(){ setUser(userInput.value); });
+  /* ---------------- Authentication ---------------- */
+  var LOGIN_DOMAIN = "@cablinginnovations.net";
+  var ACTIVITY_KEY = "ci_dashboard_last_activity_v1";
+  var IDLE_LIMIT_MS = 8 * 60 * 60 * 1000; // 8 hours
+  var currentSession = null;
+  var currentUserName = "";
+
+  function showLogin(){
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("appHeader").style.display = "none";
+    document.getElementById("appFooter").style.display = "none";
+    document.getElementById("board").style.display = "none";
+    document.getElementById("calendarView").style.display = "none";
+    document.getElementById("archiveView").style.display = "none";
+    document.getElementById("loginPassword").value = "";
+  }
+  function showApp(){
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("appHeader").style.display = "flex";
+    document.getElementById("appFooter").style.display = "flex";
+    document.getElementById("board").style.display = "flex";
+  }
+
+  function recordActivity(){
+    try { localStorage.setItem(ACTIVITY_KEY, String(Date.now())); } catch(e){}
+  }
+  function getLastActivity(){
+    var v = null;
+    try { v = Number(localStorage.getItem(ACTIVITY_KEY)); } catch(e){}
+    return v || Date.now();
+  }
+  ["mousedown","mousemove","keydown","scroll","touchstart"].forEach(function(evt){
+    document.addEventListener(evt, function(){ if(currentSession) recordActivity(); }, {passive:true});
+  });
+  setInterval(function(){
+    if(!currentSession) return;
+    if(Date.now() - getLastActivity() > IDLE_LIMIT_MS) signOutNow("Signed out after 8 hours of inactivity");
+  }, 60000);
+
+  function onSignedIn(session){
+    currentSession = session;
+    var meta = (session && session.user && session.user.user_metadata) || {};
+    currentUserName = meta.full_name || ((session.user.email || "").split("@")[0]);
+    document.getElementById("signedInName").textContent = currentUserName;
+    document.getElementById("userField").style.display = "flex";
+    recordActivity();
+    showApp();
+    initApp();
+  }
+  function onSignedOut(){
+    currentSession = null;
+    currentUserName = "";
+    cards = [];
+    alerts = [];
+    document.getElementById("userField").style.display = "none";
+    showLogin();
+  }
+  function signOutNow(message){
+    if(supabaseClient) supabaseClient.auth.signOut();
+    onSignedOut();
+    if(message) toast(message);
+  }
+
+  function attemptLogin(){
+    var errorEl = document.getElementById("loginError");
+    errorEl.style.display = "none";
+    var uname = document.getElementById("loginUsername").value.trim();
+    var pass = document.getElementById("loginPassword").value;
+    if(!uname || !pass){
+      errorEl.textContent = "Enter your username and password.";
+      errorEl.style.display = "block";
+      return;
+    }
+    if(!supabaseClient){
+      errorEl.textContent = "Login service unavailable — try reloading the page.";
+      errorEl.style.display = "block";
+      return;
+    }
+    var email = uname.indexOf("@") !== -1 ? uname.toLowerCase() : uname.toLowerCase() + LOGIN_DOMAIN;
+    var btn = document.getElementById("loginBtn");
+    btn.disabled = true;
+    btn.textContent = "Signing in…";
+    supabaseClient.auth.signInWithPassword({email:email, password:pass}).then(function(res){
+      btn.disabled = false;
+      btn.textContent = "Sign in";
+      if(res.error){
+        errorEl.textContent = "Incorrect username or password.";
+        errorEl.style.display = "block";
+        return;
+      }
+      onSignedIn(res.data.session);
+    });
+  }
+  document.getElementById("loginBtn").addEventListener("click", attemptLogin);
+  ["loginUsername","loginPassword"].forEach(function(id){
+    document.getElementById(id).addEventListener("keydown", function(e){
+      if(e.key === "Enter") attemptLogin();
+    });
+  });
+  document.getElementById("logoutBtn").addEventListener("click", function(){
+    signOutNow();
+  });
+  if(supabaseClient){
+    supabaseClient.auth.onAuthStateChange(function(event){
+      if(event === "SIGNED_OUT") onSignedOut();
+    });
+  }
 
   /* ---------------- Init ---------------- */
   async function initApp(){
@@ -2010,7 +2144,28 @@
     renderBoard();
     renderAlerts();
   }
-  initApp();
+
+  async function bootstrapAuth(){
+    if(!supabaseClient){
+      showLogin();
+      var errorEl = document.getElementById("loginError");
+      errorEl.textContent = "Could not load the authentication service.";
+      errorEl.style.display = "block";
+      return;
+    }
+    var res = await supabaseClient.auth.getSession();
+    var session = res.data && res.data.session;
+    if(session){
+      if(Date.now() - getLastActivity() > IDLE_LIMIT_MS){
+        signOutNow();
+        return;
+      }
+      onSignedIn(session);
+    } else {
+      showLogin();
+    }
+  }
+  bootstrapAuth();
 })();
 </script>
 </body>
