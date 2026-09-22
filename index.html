@@ -628,9 +628,14 @@
   /* ---------------- Helpers ---------------- */
   function uid(){ return Math.random().toString(36).slice(2,9); }
 
+  // One-year-only fix: avoid colliding with project numbers already issued in the old
+  // system during the 2026 transition. Remove this floor (or just leave it — it has no
+  // effect once the year rolls to 2027) whenever it's no longer needed.
+  var YEAR_NUMBER_FLOORS = { "26": 749 };
+
   function nextProjectNumber(){
     var yy = new Date().getFullYear().toString().slice(-2);
-    var max = 0;
+    var max = YEAR_NUMBER_FLOORS[yy] || 0;
     cards.forEach(function(c){
       if(c.id && c.id.indexOf(yy + "-") === 0){
         var n = parseInt(c.id.split("-")[1], 10);
@@ -1330,7 +1335,14 @@
 
   function overviewPanel(c){
     return '' +
-      '<p class="section-title">Bid instructions</p>' +
+      '<div class="field"><label>Project number</label>' +
+        '<div class="inline-row">' +
+          '<span class="mono" style="font-size:14px;font-weight:700;flex:0 0 auto;">' + esc(c.id) + '</span>' +
+          '<button type="button" class="btn small" id="overrideProjectNumberBtn">✏️ Override number</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<p class="section-title" style="margin-top:16px;">Bid instructions</p>' +
       '<div class="notes-list" id="bidInstructionsList">' + bidInstructionsHtml(c) + '</div>' +
       '<div class="field"><textarea id="newBidInstructionText" placeholder="Add a bid instruction…"></textarea></div>' +
       '<button class="btn small primary" id="addBidInstructionBtn" style="margin-bottom:18px;">💾 Save instruction</button>' +
@@ -1667,6 +1679,41 @@
   }
 
   function wireDynamicSections(host, c){
+    // Project number override — rare, deliberate action: confirm, then type the new number.
+    var overrideBtn = host.querySelector("#overrideProjectNumberBtn");
+    if(overrideBtn){
+      overrideBtn.addEventListener("click", function(){
+        var sure = confirm(
+          "Change the project number for " + c.id + "?\n\n" +
+          "This changes the ID everywhere it's used (calendar, exports, links). " +
+          "Only do this to avoid a conflict with another system."
+        );
+        if(!sure) return;
+
+        var newId = prompt("Enter the new project number:", c.id);
+        if(newId === null) return; // cancelled
+        newId = newId.trim();
+        if(!newId){
+          alert("Project number can't be blank. Nothing was changed.");
+          return;
+        }
+        if(newId === c.id) return;
+        if(cards.some(function(x){ return x.id === newId; })){
+          alert("\"" + newId + "\" is already used by another card. Nothing was changed.");
+          return;
+        }
+
+        var oldId = c.id;
+        deleteCardRemote(oldId);
+        c.id = newId;
+        if(activeDetailId === oldId) activeDetailId = newId;
+        saveCards();
+        renderBoard();
+        renderDetail();
+        toast("Project number changed to " + newId);
+      });
+    }
+
     // Project Setup — fields already save live; this gives an explicit confirmation
     var saveProject = host.querySelector("#saveProjectBtn");
     if(saveProject){
