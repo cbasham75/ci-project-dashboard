@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CI Project Dashboard</title>
+<title>CI Project Bashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -66,7 +66,13 @@
     position:sticky;top:0;z-index:20;
     flex-wrap:wrap;
   }
-  .brand{display:flex;align-items:baseline;gap:10px;margin-right:auto;}
+  .brand-block{display:flex;flex-direction:column;gap:8px;margin-right:auto;}
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .header-search{flex:0 1 240px;}
+  .header-search input{
+    width:100%;border:1px solid var(--line);background:var(--paper);color:var(--ink);
+    border-radius:6px;padding:8px 10px;font-size:13px;
+  }
   .brand .mark{
     font-weight:800;font-size:19px;letter-spacing:-0.01em;
   }
@@ -171,6 +177,12 @@
   .card .due.overdue{color:var(--red);font-weight:600;}
   .card .pmbar{height:4px;border-radius:3px;background:var(--line-soft);margin-top:7px;overflow:hidden;}
   .card .pmbar > i{display:block;height:100%;background:var(--green);}
+  .tile-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px;}
+  .tile-badge{
+    font-size:10px;font-weight:700;color:var(--ink-soft);background:var(--line-soft);
+    border-radius:4px;padding:2px 6px;
+  }
+  .tile-note{font-size:11px;color:var(--ink-soft);font-style:italic;margin-bottom:6px;line-height:1.3;}
 
   /* ---------- Modal ---------- */
   .overlay{
@@ -211,12 +223,14 @@
   .checkline{display:flex;align-items:center;gap:6px;font-size:13px;}
   .checkline input{width:15px;height:15px;}
 
-  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line-soft);margin-bottom:16px;flex-wrap:wrap;}
+  .tabs{display:flex;gap:4px;border-bottom:2px solid var(--line-soft);margin-bottom:16px;flex-wrap:wrap;}
   .tab{
-    padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--ink-soft);
-    border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;
+    padding:10px 16px;font-size:14px;font-weight:700;color:var(--ink-soft);
+    border:none;background:none;border-bottom:3px solid transparent;margin-bottom:-2px;
+    letter-spacing:.01em;
   }
-  .tab.active{color:var(--ink);border-color:var(--blue);}
+  .tab:hover{color:var(--ink);}
+  .tab.active{color:var(--blue);border-color:var(--blue);}
   .panel{display:none;}
   .panel.active{display:block;}
 
@@ -317,7 +331,7 @@
 
 <div id="loginScreen" class="login-screen">
   <div class="login-card">
-    <div class="login-mark">🗂️ CI Project Dashboard</div>
+    <div class="login-mark">🗂️ CI Project Bashboard</div>
     <p class="login-sub">Sign in to continue</p>
     <div class="field">
       <label>Username</label>
@@ -333,9 +347,15 @@
 </div>
 
 <header class="topbar" id="appHeader" style="display:none;">
-  <div class="brand">
-    <span class="mark">🗂️ CI Project Dashboard</span>
-    <span class="tag">Opportunity → Estimate → Project → Invoice</span>
+  <div class="brand-block">
+    <div class="brand">
+      <span class="mark">🗂️ CI Project Bashboard</span>
+      <span class="tag">Opportunity → Estimate → Project → Invoice</span>
+    </div>
+    <button class="btn primary" id="newCardBtn" style="align-self:flex-start;">+ New Opportunity</button>
+  </div>
+  <div class="header-search">
+    <input type="text" id="searchInput" placeholder="🔎 Search name, customer, or #…">
   </div>
   <div class="user-field" id="userField" style="display:none;">
     Signed in as <strong id="signedInName" style="color:var(--ink);"></strong>
@@ -349,12 +369,12 @@
       <div id="alertsList"></div>
     </div>
   </div>
+  <a class="btn ghost small" href="https://app.smartsheet.com/sheets/JFJHGJr5gpGFfj99X4v82WcWXV2jhgqWM379mfM1?view=calendar" target="_blank" rel="noopener">📆 Team Calendar</a>
   <button class="btn ghost small" id="calendarBtn">📅 Estimator Calendar</button>
   <button class="btn ghost small" id="archiveBtn">🗄️ On Hold / Lost / Archive</button>
   <button class="btn ghost small" id="exportBtn">Export JSON</button>
   <button class="btn ghost small" id="importBtn">Import JSON</button>
   <input type="file" id="importFile" accept="application/json" style="display:none;">
-  <button class="btn primary" id="newCardBtn">+ New Opportunity</button>
 </header>
 
 <main class="board" id="board"></main>
@@ -413,7 +433,7 @@
       </div>
       <div class="field">
         <label>Salesperson (alerted when estimate is complete)</label>
-        <input type="text" id="f_salesperson">
+        <select id="f_salesperson"></select>
       </div>
     </div>
     <div class="modal-foot">
@@ -486,7 +506,8 @@
   var COLUMNS = [
     {key:"opportunity",           label:"Opportunity",            color:"var(--slate)"},
     {key:"estimating",            label:"Estimating",             color:"#C9820E"},
-    {key:"project_created",       label:"Project Created",        color:"var(--blue)"},
+    {key:"estimate_submitted",    label:"Estimate Submitted",     color:"#8B6F3F"},
+    {key:"project_created",       label:"Active Project",         color:"var(--blue)"},
     {key:"project_in_progress",   label:"Project in Progress",    color:"var(--blue-deep)"},
     {key:"project_complete",      label:"Project Complete",       color:"var(--green)"},
     {key:"final_invoiced",        label:"Final Invoiced",         color:"#2F6B4F"},
@@ -494,8 +515,7 @@
   ];
   var ESTIMATING_STAGES = [
     {key:"in_progress", label:"In Progress"},
-    {key:"complete",    label:"Complete"},
-    {key:"submitted",   label:"Submitted"}
+    {key:"complete",    label:"Complete"}
   ];
 
   /* ---------------- State ---------------- */
@@ -506,6 +526,8 @@
   var activeEstimateVersion = 0;
   var calMonthOffset = 0;
   var collapsedCO = {};
+  var searchQuery = "";
+  var teamMembers = ["Megan Ivy","Chris Basham","Tyler Murray","Kerry Peace","Hali McNair","Holli Treese"];
 
   function loadCardsFromCache(){
     var list;
@@ -526,8 +548,27 @@
     var res = await supabaseClient.from("alerts").select("*").order("created_at", {ascending:false}).limit(200);
     if(res.error) throw res.error;
     return res.data.map(function(row){
-      return {id:row.id, cardId:row.card_id, projectName:row.project_name, message:row.message, timestamp:row.created_at, read:!!row.read};
+      return {id:row.id, cardId:row.card_id, projectName:row.project_name, message:row.message, timestamp:row.created_at, read:!!row.read, assignedTo:row.assigned_to||""};
     });
+  }
+  // Falls back to the hardcoded roster above if the table can't be reached — the app
+  // still works, it just won't reflect a newly added teammate until this loads.
+  async function loadTeamMembersRemote(){
+    var res = await supabaseClient.from("team_members").select("name").order("sort_order");
+    if(res.error) throw res.error;
+    return res.data.map(function(row){ return row.name; });
+  }
+  function teamMemberOptionsHtml(selected){
+    var opts = '<option value=""' + (!selected?" selected":"") + '>—</option>';
+    teamMembers.forEach(function(name){
+      opts += '<option value="' + esc(name) + '"' + (name===selected?" selected":"") + '>' + esc(name) + '</option>';
+    });
+    // If the stored value isn't in the current roster (e.g. someone who's left), keep it
+    // selectable so existing data isn't silently blanked out.
+    if(selected && teamMembers.indexOf(selected) === -1){
+      opts += '<option value="' + esc(selected) + '" selected>' + esc(selected) + ' (not on current roster)</option>';
+    }
+    return opts;
   }
 
   // Backfills fields for cards saved under earlier versions of this app so the UI never
@@ -553,6 +594,7 @@
     }
     c.estimateVersions.forEach(function(v){
       if(typeof v.dueDate !== "string") v.dueDate = "";
+      if(typeof v.description !== "string") v.description = "";
     });
     if(!Array.isArray(c.bidInstructions)) c.bidInstructions = [];
     if(Array.isArray(c.changeOrders)){
@@ -578,19 +620,24 @@
     if(!c.hla) c.hla = {status:"", reason:"", previousStatus:"", savedAt:null, savedBy:""};
     if(!Array.isArray(c.subcontractors)) c.subcontractors = [];
 
-    // The three old Estimating columns collapsed into one "estimating" column with an
-    // in-card stage selector. Preserve where a card (or an archived card's prior column)
-    // actually was so nothing appears to reset.
+    // History: the three old Estimating columns were briefly collapsed into one
+    // "estimating" column with an in-card stage selector; Estimate Submitted has since
+    // been split back out as its own column, so only In Progress/Complete stay merged.
     var OLD_ESTIMATE_STATUS_MAP = {
       estimate_in_progress: "in_progress",
-      estimate_complete:    "complete",
-      estimate_submitted:   "submitted"
+      estimate_complete:    "complete"
     };
     if(OLD_ESTIMATE_STATUS_MAP[c.status]){
       c.estimatingStage = OLD_ESTIMATE_STATUS_MAP[c.status];
       c.status = "estimating";
     }
-    if(typeof c.estimatingStage !== "string" || !c.estimatingStage){
+    // Cards that had been merged into "estimating" with a "submitted" stage (from the
+    // brief fully-merged period) move back out to the standalone column.
+    if(c.status === "estimating" && c.estimatingStage === "submitted"){
+      c.status = "estimate_submitted";
+      c.estimatingStage = "complete";
+    }
+    if(typeof c.estimatingStage !== "string" || !c.estimatingStage || c.estimatingStage === "submitted"){
       c.estimatingStage = "in_progress";
     }
     if(OLD_ESTIMATE_STATUS_MAP[c.hla.previousStatus]){
@@ -616,7 +663,7 @@
     try { localStorage.setItem(ALERT_KEY, JSON.stringify(alerts)); } catch(e){}
     if(!supabaseClient || !alerts.length) return;
     var rows = alerts.map(function(a){
-      return {id:a.id, card_id:a.cardId||null, project_name:a.projectName||null, message:a.message, created_at:a.timestamp, read:!!a.read};
+      return {id:a.id, card_id:a.cardId||null, project_name:a.projectName||null, message:a.message, created_at:a.timestamp, read:!!a.read, assigned_to:a.assignedTo||null};
     });
     supabaseClient.from("alerts").upsert(rows).then(function(res){
       if(res.error) console.error("Alert save failed", res.error);
@@ -702,13 +749,13 @@
   function isArchived(c){ return !!(c.hla && c.hla.status); }
 
   // Used by the calendar's yellow/green coloring: a card counts as "past estimating"
-  // once it's moved on to Project Created or later, or while still in the Estimating
-  // column, once its in-card stage is Complete or Submitted.
+  // once it's reached Estimate Submitted or later, or while still in the Estimating
+  // column, once its in-card stage is Complete.
   function isPastEstimating(c){
     var idx = COLUMNS.findIndex(function(col){ return col.key === c.status; });
     var estimatingIdx = COLUMNS.findIndex(function(col){ return col.key === "estimating"; });
     if(idx > estimatingIdx) return true;
-    if(idx === estimatingIdx) return c.estimatingStage === "complete" || c.estimatingStage === "submitted";
+    if(idx === estimatingIdx) return c.estimatingStage === "complete";
     return false;
   }
   function hlaLabel(status){
@@ -746,10 +793,10 @@
     setTimeout(function(){ el.remove(); }, 3200);
   }
 
-  function pushAlert(cardId, projectName, message){
+  function pushAlert(cardId, projectName, message, assignedTo){
     alerts.unshift({
       id: uid(), cardId: cardId, projectName: projectName,
-      message: message, timestamp: new Date().toISOString(), read:false
+      message: message, timestamp: new Date().toISOString(), read:false, assignedTo: assignedTo || ""
     });
     saveAlerts();
     renderAlerts();
@@ -774,7 +821,7 @@
       bidDueTime: data.bidDueTime || "",
       contractAmount: 0,
       changeOrders: [],
-      estimateVersions: [{id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:""}],
+      estimateVersions: [{id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:"", description:""}],
       estimateComplete: {materialPrice:0, laborPrice:0, tax:0, laborHours:0, completedAt:null, alertSent:false},
       submittedTo: [],
       projectCreated: {
@@ -791,11 +838,19 @@
   }
 
   /* ---------------- Rendering: board ---------------- */
+  function matchesSearch(c){
+    if(!searchQuery) return true;
+    var q = searchQuery.toLowerCase();
+    return (c.projectName||"").toLowerCase().indexOf(q) !== -1 ||
+      (c.projectCustomer||"").toLowerCase().indexOf(q) !== -1 ||
+      (c.id||"").toLowerCase().indexOf(q) !== -1;
+  }
+
   function renderBoard(){
     var board = document.getElementById("board");
     board.innerHTML = "";
     COLUMNS.forEach(function(col){
-      var colCards = cards.filter(function(c){ return c.status === col.key && !isArchived(c); });
+      var colCards = cards.filter(function(c){ return c.status === col.key && !isArchived(c) && matchesSearch(c); });
       var colTotal = colCards.reduce(function(s,c){ return s + totalValue(c); }, 0);
 
       var colEl = document.createElement("div");
@@ -933,7 +988,7 @@
         (c.changeOrders || []).forEach(function(co){
           if(co.coDueDate === dateStr){
             var coValue = (Number(co.materialPrice)||0) + (Number(co.laborPrice)||0) + (Number(co.tax)||0);
-            var fulfilled = !!(co.description && co.description.trim() && coValue > 0 && co.timestamp);
+            var fulfilled = !!(co.description && co.description.trim() && coValue > 0);
             var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · " + esc(co.num);
             bubbles += '<button type="button" class="cal-bubble ' + (fulfilled ? "done" : "pending") + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
           }
@@ -946,7 +1001,7 @@
         (c.estimateVersions || []).forEach(function(ver, vi){
           if(vi === 0) return;
           if(ver.dueDate === dateStr){
-            var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · V" + (vi+1);
+            var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · V" + (vi+1) + (ver.description ? " — " + esc(ver.description) : "");
             bubbles += '<button type="button" class="cal-bubble ' + (isPastEstimating(c) ? "done" : "pending") + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
           }
         });
@@ -962,7 +1017,7 @@
           '<button class="btn small" id="calPrevBtn">‹</button>' +
           '<span class="cal-month-label">' + monthLabel + '</span>' +
           '<button class="btn small" id="calNextBtn">›</button>' +
-          '<button class="btn small" id="calRefreshBtn" title="Refresh">🔄</button>' +
+          '<button class="btn" id="calRefreshBtn" title="Refresh" style="font-size:18px;padding:8px 16px;">🔄</button>' +
         '</div>' +
       '</div>' +
       '<div class="cal-weekdays">' + ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(function(w){ return '<div>' + w + '</div>'; }).join("") + '</div>' +
@@ -990,7 +1045,9 @@
     if(card.divisions.av) divTags.push("AV");
 
     var dueHtml = "";
-    if(card.bidDueDate){
+    var activeProjectIdx = COLUMNS.findIndex(function(col){ return col.key === "project_created"; });
+    var cardIdx = COLUMNS.findIndex(function(col){ return col.key === card.status; });
+    if(card.bidDueDate && cardIdx < activeProjectIdx){
       var due = new Date(card.bidDueDate + "T" + (card.bidDueTime || "17:00"));
       var overdue = due < new Date() && card.status === "opportunity";
       dueHtml = '<span class="due ' + (overdue ? "overdue" : "") + '">Bid due ' + esc(card.bidDueDate) + (card.bidDueTime ? " " + esc(card.bidDueTime) : "") + '</span>';
@@ -1001,12 +1058,32 @@
       pmBar = '<div class="pmbar"><i style="width:' + (Number(card.pm.percentComplete)||0) + '%"></i></div>';
     }
 
+    var badges = [];
+    if(card.status === "estimating"){
+      var stageInfo = ESTIMATING_STAGES.find(function(s){ return s.key === card.estimatingStage; });
+      badges.push('<span class="tile-badge">' + esc(stageInfo ? stageInfo.label : "In Progress") + '</span>');
+    }
+    if((card.changeOrders||[]).length){
+      badges.push('<span class="tile-badge">CO: ' + card.changeOrders.length + '</span>');
+    }
+    var badgeHtml = badges.length ? '<div class="tile-badges">' + badges.join("") + '</div>' : "";
+
+    var versionNote = "";
+    if(card.status === "estimating" || card.status === "estimate_submitted"){
+      var latestVer = (card.estimateVersions||[])[card.estimateVersions.length-1];
+      if(latestVer && latestVer.description){
+        versionNote = '<div class="tile-note">' + esc(latestVer.description) + '</div>';
+      }
+    }
+
     el.innerHTML =
       '<div class="pn"><span>' + esc(card.id) + '</span><span class="divisions">' +
         divTags.map(function(t){ return '<span>' + t + '</span>'; }).join("") +
       '</span></div>' +
       '<div class="name">' + esc(card.projectName || "Untitled project") + '</div>' +
       '<div class="customer">' + esc(card.projectCustomer || "—") + '</div>' +
+      badgeHtml +
+      versionNote +
       '<div class="foot"><span class="value">' + money(totalValue(card)) + '</span>' + dueHtml + '</div>' +
       pmBar;
 
@@ -1033,10 +1110,14 @@
   }
 
   /* ---------------- Alerts UI ---------------- */
+  function isMineOrUnassigned(a){
+    return !a.assignedTo || a.assignedTo === currentUserName;
+  }
+
   function renderAlerts(){
     var list = document.getElementById("alertsList");
     var dot = document.getElementById("alertDot");
-    var unread = alerts.filter(function(a){ return !a.read; }).length;
+    var unread = alerts.filter(function(a){ return !a.read && isMineOrUnassigned(a); }).length;
     dot.style.display = unread ? "flex" : "none";
     dot.textContent = unread;
 
@@ -1045,7 +1126,10 @@
       return;
     }
     list.innerHTML = alerts.slice(0,25).map(function(a){
-      return '<div class="alert-item"><div>' + esc(a.message) + '</div>' +
+      var mine = a.assignedTo && a.assignedTo === currentUserName;
+      return '<div class="alert-item" style="' + (mine ? "border-left:3px solid var(--blue);padding-left:9px;" : "") + '">' +
+        '<div>' + esc(a.message) + '</div>' +
+        (a.assignedTo ? '<div class="t">For: ' + esc(a.assignedTo) + '</div>' : '') +
         '<div class="t">' + new Date(a.timestamp).toLocaleString() + '</div></div>';
     }).join("");
   }
@@ -1054,7 +1138,7 @@
     var panel = document.getElementById("alertsPanel");
     panel.classList.toggle("open");
     if(panel.classList.contains("open")){
-      alerts.forEach(function(a){ a.read = true; });
+      alerts.forEach(function(a){ if(isMineOrUnassigned(a)) a.read = true; });
       saveAlerts();
       renderAlerts();
     }
@@ -1102,9 +1186,10 @@
   });
 
   document.getElementById("newCardBtn").addEventListener("click", function(){
-    ["f_projectName","f_address","f_projectCustomer","f_bidDueDate","f_salesperson"]
+    ["f_projectName","f_address","f_projectCustomer","f_bidDueDate"]
       .forEach(function(id){ document.getElementById(id).value = ""; });
     document.getElementById("f_bidDueTime").value = "";
+    document.getElementById("f_salesperson").innerHTML = teamMemberOptionsHtml("");
     document.getElementById("f_div_scs").checked = false;
     document.getElementById("f_div_security").checked = false;
     document.getElementById("f_div_av").checked = false;
@@ -1147,6 +1232,7 @@
   var DEFAULT_TAB_BY_STATUS = {
     opportunity:          "overview",
     estimating:           "estimating",
+    estimate_submitted:   "estimating",
     project_created:      "project",
     project_in_progress:  "pm",
     project_complete:     "closeout",
@@ -1367,7 +1453,7 @@
         '<div class="field"><label>Bid due date</label><input type="date" data-path="bidDueDate" value="' + esc(c.bidDueDate) + '"></div>' +
         '<div class="field"><label>Bid due time</label><select data-path="bidDueTime">' + timeOptionsHtml(c.bidDueTime) + '</select></div>' +
       '</div>' +
-      '<div class="field"><label>Salesperson</label><input type="text" data-path="salesperson" value="' + esc(c.salesperson) + '"></div>';
+      '<div class="field"><label>Salesperson</label><select data-path="salesperson">' + teamMemberOptionsHtml(c.salesperson) + '</select></div>';
   }
 
   function subcontractorsHtml(c){
@@ -1427,21 +1513,16 @@
       '<div class="subtabs" id="versionTabs">' + subtabsHtml + '</div>' +
       '<div class="subcard">' +
         '<div class="inline-row">' +
-          '<div class="field" style="flex:1 1 120px;"><label>Estimator</label><input type="text" data-vfield="estimator" value="' + esc(v.estimator) + '"></div>' +
-          '<div class="field" style="flex:0 0 auto;"><label>Timestamp</label>' +
-            '<div class="inline-row" style="gap:8px;">' +
-              '<button type="button" class="btn small" id="stampVersionBtn">Stamp now</button>' +
-              '<span style="font-size:11.5px;color:var(--ink-soft);">' + (v.timestamp ? esc(new Date(v.timestamp).toLocaleString()) : "not stamped") + '</span>' +
-            '</div>' +
-          '</div>' +
-          '<div class="field" style="flex:1 1 130px;"><label>Stage</label><input type="text" list="stageOptions" data-vfield="stage" value="' + esc(v.stage) + '" placeholder="DD, Budgetary, Final…"></div>' +
+          '<div class="field" style="flex:1 1 140px;"><label>Estimator</label><select data-vfield="estimator">' + teamMemberOptionsHtml(v.estimator) + '</select></div>' +
+          '<div class="field" style="flex:1 1 150px;"><label>Stage</label><input type="text" list="stageOptions" data-vfield="stage" value="' + esc(v.stage) + '" placeholder="SD, DD, CD, Budgetary, Final…"></div>' +
         '</div>' +
+        '<div class="field"><label>Description</label><input type="text" data-vfield="description" value="' + esc(v.description) + '" placeholder="e.g. Client requested revised pricing — shows on calendar/tile"></div>' +
         (activeEstimateVersion > 0 ?
           '<div class="field" style="max-width:200px;"><label>Due date (this version)</label><input type="date" data-vfield="dueDate" value="' + esc(v.dueDate) + '"></div>'
           : '') +
         (versions.length > 1 ? '<button class="miniremove" id="removeVersionBtn">Remove this version</button>' : '') +
       '</div>' +
-      '<datalist id="stageOptions"><option value="DD"><option value="Budgetary"><option value="Final"></datalist>' +
+      '<datalist id="stageOptions"><option value="SD"><option value="DD"><option value="CD"><option value="Budgetary"><option value="Final"><option value="Reactivated"></datalist>' +
 
       '<p class="section-title" style="margin-top:18px;">Estimate complete</p>' +
       '<div class="inline-row">' +
@@ -1450,7 +1531,7 @@
         '<div class="field" style="flex:1 1 90px;"><label>Tax</label><input type="text" class="money-input" data-path="estimateComplete.tax" value="' + money(ec.tax||0) + '"></div>' +
         '<div class="field" style="flex:1 1 80px;"><label>Hours</label><input type="number" step="0.5" data-path="estimateComplete.laborHours" value="' + Number(ec.laborHours||0) + '"></div>' +
       '</div>' +
-      '<button class="btn small" id="markEstCompleteBtn">Mark estimate complete &amp; alert ' + esc(c.salesperson || "salesperson") + '</button>' +
+      '<button class="btn small" id="markEstCompleteBtn" style="margin-top:14px;">Mark estimate complete &amp; alert ' + esc(c.salesperson || "salesperson") + '</button>' +
       (ec.alertSent ? '<div class="note-empty">Alert sent ' + new Date(ec.completedAt).toLocaleString() + '</div>' : '') +
 
       '<p class="section-title" style="margin-top:18px;">Estimate submitted to</p>' +
@@ -1479,7 +1560,7 @@
         '<div class="field"><label>Winning contractor / customer</label><input type="text" data-path="projectCreated.winningContractor" value="' + esc(pc.winningContractor) + '"></div>' +
         '<div class="field"><label>Contract amount</label><input type="text" class="money-input" data-path="contractAmount" value="' + money(c.contractAmount||0) + '"></div>' +
       '</div>' +
-      '<div class="field"><label>Project manager</label><input type="text" data-path="projectCreated.pmName" value="' + esc(pc.pmName) + '"></div>' +
+      '<div class="field"><label>Project manager</label><select data-path="projectCreated.pmName">' + teamMemberOptionsHtml(pc.pmName) + '</select></div>' +
 
       '<div class="field"><label>Contacts</label>' +
         '<div id="contactsList">' + contactsListHtml(c) + '</div>' +
@@ -1558,7 +1639,6 @@
           '<input type="number" min="0" max="100" class="compact-input" style="flex:0 0 64px;" data-field="percent" value="' + Number(b.percent||0) + '">' +
           '<span style="font-size:12px;color:var(--ink-soft);">% billable</span>' +
           '<button class="btn small primary" data-save-billing="' + i + '">💾 Save</button>' +
-          '<button class="btn small" data-alert-billing="' + i + '" title="Alert accounting">🔔 Alert accounting</button>' +
           '<button class="miniremove" data-remove-billing="' + i + '">Remove</button>' +
         '</div>' +
       '</div>';
@@ -1620,12 +1700,6 @@
             '<div class="field" style="flex:1 1 80px;"><label>Tax</label><input type="text" class="money-input" data-field="tax" value="' + money(co.tax||0) + '"></div>' +
             '<div class="field" style="flex:1 1 70px;"><label>Hours</label><input type="number" step="0.5" data-field="laborHours" value="' + Number(co.laborHours||0) + '"></div>' +
           '</div>' +
-          '<div class="field" style="max-width:260px;"><label>Timestamp</label>' +
-            '<div class="inline-row" style="gap:8px;">' +
-              '<button type="button" class="btn small" data-stamp-co="' + i + '">Stamp now</button>' +
-              '<span style="font-size:11.5px;color:var(--ink-soft);">' + (co.timestamp ? esc(new Date(co.timestamp).toLocaleString()) : "not stamped") + '</span>' +
-            '</div>' +
-          '</div>' +
           '<div class="inline-row" style="margin-top:6px;">' +
             '<div class="field" style="flex:1 1 160px;"><label>Sent to</label><input type="text" data-field="sentTo" value="' + esc(co.sentTo) + '"></div>' +
             '<label class="checkline" style="padding-bottom:9px;"><input type="checkbox" data-field="sent" data-co-checkbox="' + i + '" ' + (co.sent?"checked":"") + '> Sent</label>' +
@@ -1633,7 +1707,7 @@
           '</div>' +
           '<div class="inline-row" style="margin-top:6px;">' +
             '<label class="checkline" style="padding-bottom:9px;"><input type="checkbox" data-field="approved" data-co-checkbox="' + i + '" ' + (co.approved?"checked":"") + '> Approved</label>' +
-            '<div class="field" style="flex:1 1 160px;"><label>Approved by</label><input type="text" data-field="approvedBy" value="' + esc(co.approvedBy) + '"></div>' +
+            '<div class="field" style="flex:1 1 160px;"><label>Approved by</label><select data-field="approvedBy">' + teamMemberOptionsHtml(co.approvedBy) + '</select></div>' +
           '</div>' +
           '<button class="btn small primary" data-save-co-details="' + i + '" style="margin-top:8px;">💾 Save details</button>' +
         '</div>' +
@@ -1763,7 +1837,7 @@
     var addVersionBtn = host.querySelector("#addVersionBtn");
     if(addVersionBtn){
       addVersionBtn.addEventListener("click", function(){
-        c.estimateVersions.push({id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:""});
+        c.estimateVersions.push({id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:"", description:""});
         activeEstimateVersion = c.estimateVersions.length - 1;
         saveCards();
         renderDetail();
@@ -1775,14 +1849,6 @@
         if(c.estimateVersions.length <= 1) return;
         c.estimateVersions.splice(activeEstimateVersion, 1);
         activeEstimateVersion = Math.max(0, activeEstimateVersion - 1);
-        saveCards();
-        renderDetail();
-      });
-    }
-    var stampBtn = host.querySelector("#stampVersionBtn");
-    if(stampBtn){
-      stampBtn.addEventListener("click", function(){
-        c.estimateVersions[activeEstimateVersion].timestamp = new Date().toISOString();
         saveCards();
         renderDetail();
       });
@@ -1802,7 +1868,7 @@
         c.estimateComplete.completedAt = new Date().toISOString();
         c.estimateComplete.alertSent = true;
         saveCards();
-        pushAlert(c.id, c.projectName, "Estimate complete for " + c.projectName + " (" + c.id + ") — notify " + (c.salesperson || "salesperson"));
+        pushAlert(c.id, c.projectName, "Estimate complete for " + c.projectName + " (" + c.id + ") — notify " + (c.salesperson || "salesperson"), c.salesperson);
         toast("Alert sent");
         renderDetail();
       });
@@ -1965,14 +2031,6 @@
         toast("Billing month saved");
       });
     });
-    host.querySelectorAll("[data-alert-billing]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var i = Number(btn.dataset.alertBilling);
-        var b = c.pm.billing[i];
-        pushAlert(c.id, c.projectName, "Billing ready — " + (b.month || "unlabeled month") + " (" + (Number(b.percent)||0) + "%) for " + c.projectName + " (" + c.id + ") — notify accounting");
-        toast("Alert sent to accounting");
-      });
-    });
     host.querySelectorAll("[data-remove-billing]").forEach(function(el){
       el.addEventListener("click", function(){
         c.pm.billing.splice(Number(el.dataset.removeBilling), 1);
@@ -2062,14 +2120,6 @@
         toast(c.changeOrders[i].num + " details saved");
       });
     });
-    host.querySelectorAll("[data-stamp-co]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var i = Number(btn.dataset.stampCo);
-        c.changeOrders[i].timestamp = new Date().toISOString();
-        saveCards();
-        renderDetail();
-      });
-    });
     host.querySelectorAll("[data-remove-co]").forEach(function(el){
       el.addEventListener("click", function(){
         c.changeOrders.splice(Number(el.dataset.removeCo), 1);
@@ -2084,6 +2134,11 @@
   }
 
   /* ---------------- Export / Import ---------------- */
+  document.getElementById("searchInput").addEventListener("input", function(e){
+    searchQuery = e.target.value.trim();
+    renderBoard();
+  });
+
   document.getElementById("calendarBtn").addEventListener("click", function(){
     calMonthOffset = 0;
     showCalendar();
@@ -2314,6 +2369,7 @@
       try {
         loadedCards = await loadCardsRemote();
         loadedAlerts = await loadAlertsRemote();
+        teamMembers = await loadTeamMembersRemote();
       } catch(err){
         console.error("Supabase load failed, falling back to the local cache", err);
         toast("Couldn't reach the database — showing the last saved copy on this device");
