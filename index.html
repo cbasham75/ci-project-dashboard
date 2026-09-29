@@ -445,9 +445,9 @@
         <input type="text" id="f_projectCustomer">
       </div>
       <div class="field">
-        <label>Direct customer(s)</label>
+        <label>Contractor(s)</label>
         <div id="directCustomersContainer"></div>
-        <button type="button" class="add-row-btn" id="addDirectCustomerBtn">+ Add direct customer</button>
+        <button type="button" class="add-row-btn" id="addDirectCustomerBtn">+ Add contractor</button>
       </div>
       <div class="field">
         <label>Divisions</label>
@@ -543,7 +543,7 @@
     {key:"opportunity",           label:"Opportunity",            color:"var(--slate)"},
     {key:"estimating",            label:"Estimating",             color:"#C9820E"},
     {key:"estimate_submitted",    label:"Estimate Submitted",     color:"#8B6F3F"},
-    {key:"project_created",       label:"Active Project",         color:"var(--blue)"},
+    {key:"project_created",       label:"Project Won",            color:"var(--blue)"},
     {key:"project_in_progress",   label:"Project in Progress",    color:"var(--blue-deep)"},
     {key:"project_complete",      label:"Project Complete",       color:"var(--green)"},
     {key:"final_invoiced",        label:"Final Invoiced",         color:"#2F6B4F"},
@@ -629,13 +629,30 @@
     if(typeof pc.parking !== "string") pc.parking = "";
     if(typeof pc.workHours !== "string") pc.workHours = "";
     if(!c.pm) c.pm = {percentComplete:0, notes:[], billing:[]};
+    if(!c.estimateComplete) c.estimateComplete = {completedAt:null, alertSent:false};
     if(!Array.isArray(c.estimateVersions) || !c.estimateVersions.length){
       c.estimateVersions = [{id: uid(), title:"", estimator: c.estimator || "", timestamp:null, stage:"", dueDate:""}];
     }
     c.estimateVersions.forEach(function(v){
       if(typeof v.dueDate !== "string") v.dueDate = "";
       if(typeof v.description !== "string") v.description = "";
+      if(typeof v.materialPrice !== "number") v.materialPrice = 0;
+      if(typeof v.laborPrice !== "number") v.laborPrice = 0;
+      if(typeof v.tax !== "number") v.tax = 0;
+      if(typeof v.laborHours !== "number") v.laborHours = 0;
     });
+    // Material/Labor/Tax/Hours used to be one shared set of numbers for the whole card;
+    // they now live on each version. Carry any old shared numbers into the latest
+    // version (only if it doesn't already have its own) so nothing looks zeroed out.
+    if(c.estimateComplete && (c.estimateComplete.materialPrice || c.estimateComplete.laborPrice || c.estimateComplete.tax || c.estimateComplete.laborHours)){
+      var latestVerForMigration = c.estimateVersions[c.estimateVersions.length - 1];
+      if(latestVerForMigration && !latestVerForMigration.materialPrice && !latestVerForMigration.laborPrice && !latestVerForMigration.tax && !latestVerForMigration.laborHours){
+        latestVerForMigration.materialPrice = c.estimateComplete.materialPrice || 0;
+        latestVerForMigration.laborPrice = c.estimateComplete.laborPrice || 0;
+        latestVerForMigration.tax = c.estimateComplete.tax || 0;
+        latestVerForMigration.laborHours = c.estimateComplete.laborHours || 0;
+      }
+    }
     if(!Array.isArray(c.bidInstructions)) c.bidInstructions = [];
     if(Array.isArray(c.changeOrders)){
       c.changeOrders.forEach(function(co){
@@ -777,6 +794,28 @@
     return base + coTotal;
   }
 
+  // The latest version's Material + Labor + Tax — what the job is worth before there's
+  // a signed contract amount to point to.
+  function estimateTotal(card){
+    var versions = card.estimateVersions || [];
+    var v = versions[versions.length - 1];
+    if(!v) return 0;
+    return (Number(v.materialPrice)||0) + (Number(v.laborPrice)||0) + (Number(v.tax)||0);
+  }
+
+  // What to show as "the number" for a card at a glance: the running estimate while it's
+  // still being bid, the real contract (+ change orders) once it's an actual project.
+  function tileValue(card){
+    var activeIdx = COLUMNS.findIndex(function(col){ return col.key === "project_created"; });
+    var cardIdx = COLUMNS.findIndex(function(col){ return col.key === card.status; });
+    return cardIdx < activeIdx ? estimateTotal(card) : totalValue(card);
+  }
+
+  function contractorText(card){
+    var names = (card.directCustomers||[]).map(function(dc){ return dc.name; }).filter(function(n){ return n && n.trim(); });
+    return names.length ? names.join(", ") : "—";
+  }
+
   function stageColor(key){
     var col = COLUMNS.find(function(c){ return c.key === key; });
     return col ? col.color : "var(--slate)";
@@ -861,8 +900,8 @@
       bidDueTime: data.bidDueTime || "",
       contractAmount: 0,
       changeOrders: [],
-      estimateVersions: [{id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:"", description:""}],
-      estimateComplete: {materialPrice:0, laborPrice:0, tax:0, laborHours:0, completedAt:null, alertSent:false},
+      estimateVersions: [{id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:"", description:"", materialPrice:0, laborPrice:0, tax:0, laborHours:0}],
+      estimateComplete: {completedAt:null, alertSent:false},
       submittedTo: [],
       projectCreated: {
         winningContractor:"", pmName:"", contacts:[], parking:"",
@@ -891,7 +930,7 @@
     board.innerHTML = "";
     COLUMNS.forEach(function(col){
       var colCards = cards.filter(function(c){ return c.status === col.key && !isArchived(c) && matchesSearch(c); });
-      var colTotal = colCards.reduce(function(s,c){ return s + totalValue(c); }, 0);
+      var colTotal = colCards.reduce(function(s,c){ return s + tileValue(c); }, 0);
 
       var colEl = document.createElement("div");
       colEl.className = "column";
@@ -975,7 +1014,7 @@
             '<button class="btn small" data-open-archived-card="' + c.id + '">Open</button>' +
           '</div>' +
           '<div style="font-weight:700;font-size:13.5px;margin-bottom:2px;">' + esc(c.projectName || "Untitled project") + '</div>' +
-          '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">' + esc(c.projectCustomer || "—") + ' &nbsp;·&nbsp; ' + money(totalValue(c)) + '</div>' +
+          '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">' + esc(c.projectCustomer || "—") + ' &nbsp;·&nbsp; ' + money(tileValue(c)) + '</div>' +
           (c.hla.reason ? '<div style="font-size:12.5px;margin-bottom:8px;">' + esc(c.hla.reason) + '</div>' : '') +
           '<div style="font-size:10.5px;color:var(--ink-soft);margin-bottom:9px;">Moved by ' + esc(c.hla.savedBy || "Unknown") + (c.hla.savedAt ? " — " + new Date(c.hla.savedAt).toLocaleString() : "") + '</div>' +
           '<button class="btn small primary" data-reactivate-card="' + c.id + '">Reactivate</button>' +
@@ -1072,14 +1111,14 @@
       var ib = COLUMNS.findIndex(function(col){ return col.key === b.status; });
       return ia - ib || a.id.localeCompare(b.id);
     });
-    var total = rows.reduce(function(s,c){ return s + totalValue(c); }, 0);
+    var total = rows.reduce(function(s,c){ return s + tileValue(c); }, 0);
     var body = rows.map(function(c){
       return '<tr data-open-card="' + c.id + '">' +
         '<td><strong>' + esc(c.projectName||"Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(c.id) + '</div></td>' +
         '<td>' + esc(stageLabel(c.status)) + esc(estimatingStageLabel(c)) + '</td>' +
         '<td>' + esc(c.projectCustomer||"—") + '</td>' +
         '<td>' + esc(c.projectCreated.pmName||"—") + '</td>' +
-        '<td class="num">' + money(totalValue(c)) + '</td>' +
+        '<td class="num">' + money(tileValue(c)) + '</td>' +
       '</tr>';
     }).join("");
     return '<div class="report-summary">' +
@@ -1109,7 +1148,7 @@
       return true;
     });
     rows.sort(function(a,b){ return dateOf(a).localeCompare(dateOf(b)); });
-    var total = rows.reduce(function(s,c){ return s + totalValue(c); }, 0);
+    var total = rows.reduce(function(s,c){ return s + tileValue(c); }, 0);
 
     var body = rows.map(function(c){
       return '<tr data-open-card="' + c.id + '">' +
@@ -1117,7 +1156,7 @@
         '<td>' + esc(dateOf(c)) + '</td>' +
         '<td>' + esc(stageLabel(c.status)) + '</td>' +
         '<td>' + esc(c.projectCustomer||"—") + '</td>' +
-        '<td class="num">' + money(totalValue(c)) + '</td>' +
+        '<td class="num">' + money(tileValue(c)) + '</td>' +
       '</tr>';
     }).join("");
 
@@ -1146,14 +1185,14 @@
       var db = b.bidDueDate || "9999-99-99";
       return da.localeCompare(db);
     });
-    var total = rows.reduce(function(s,c){ return s + totalValue(c); }, 0);
+    var total = rows.reduce(function(s,c){ return s + tileValue(c); }, 0);
     var body = rows.map(function(c){
       return '<tr data-open-card="' + c.id + '">' +
         '<td><strong>' + esc(c.projectName||"Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(c.id) + '</div></td>' +
         '<td>' + esc(stageLabel(c.status)) + esc(estimatingStageLabel(c)) + '</td>' +
         '<td>' + esc(c.projectCustomer||"—") + '</td>' +
         '<td>' + esc(c.bidDueDate||"—") + (c.bidDueTime ? " " + esc(c.bidDueTime) : "") + '</td>' +
-        '<td class="num">' + money(totalValue(c)) + '</td>' +
+        '<td class="num">' + money(tileValue(c)) + '</td>' +
       '</tr>';
     }).join("");
     return '<div class="report-summary">' +
@@ -1172,8 +1211,8 @@
       return idx >= activeIdx;
     });
     var lost = cards.filter(function(c){ return c.hla && c.hla.status === "lost"; });
-    var wonValue = won.reduce(function(s,c){ return s + totalValue(c); }, 0);
-    var lostValue = lost.reduce(function(s,c){ return s + totalValue(c); }, 0);
+    var wonValue = won.reduce(function(s,c){ return s + tileValue(c); }, 0);
+    var lostValue = lost.reduce(function(s,c){ return s + tileValue(c); }, 0);
     var winRate = (won.length + lost.length) ? Math.round(won.length / (won.length + lost.length) * 100) : 0;
 
     function rowsHtml(list){
@@ -1182,7 +1221,7 @@
         return '<tr data-open-card="' + c.id + '">' +
           '<td><strong>' + esc(c.projectName||"Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(c.id) + '</div></td>' +
           '<td>' + esc(c.projectCustomer||"—") + '</td>' +
-          '<td class="num">' + money(totalValue(c)) + '</td>' +
+          '<td class="num">' + money(tileValue(c)) + '</td>' +
         '</tr>';
       }).join("");
     }
@@ -1264,7 +1303,7 @@
     }
     cards.forEach(function(c){
       if(isArchived(c)) return;
-      var val = totalValue(c);
+      var val = tileValue(c);
       if(f.groupBy === "project"){
         addTo(c.projectCustomer && c.projectCustomer.trim() ? c.projectCustomer.trim() : "(none listed)", val);
       } else {
@@ -1283,7 +1322,7 @@
     return '<div class="report-filters">' +
         '<div class="field"><label>Group by</label><select id="customerGroupBy">' +
           '<option value="project"' + (f.groupBy==="project"?" selected":"") + '>Project customer</option>' +
-          '<option value="direct"' + (f.groupBy==="direct"?" selected":"") + '>Direct customer</option>' +
+          '<option value="direct"' + (f.groupBy==="direct"?" selected":"") + '>Contractor</option>' +
         '</select></div>' +
       '</div>' +
       '<div class="report-summary">' +
@@ -1434,10 +1473,10 @@
         divTags.map(function(t){ return '<span>' + t + '</span>'; }).join("") +
       '</span></div>' +
       '<div class="name">' + esc(card.projectName || "Untitled project") + '</div>' +
-      '<div class="customer">' + esc(card.projectCustomer || "—") + '</div>' +
+      '<div class="customer">' + esc(contractorText(card)) + '</div>' +
       badgeHtml +
       versionNote +
-      '<div class="foot"><span class="value">' + money(totalValue(card)) + '</span>' + dueHtml + '</div>' +
+      '<div class="foot"><span class="value">' + money(tileValue(card)) + '</span>' + dueHtml + '</div>' +
       pmBar;
 
     el.addEventListener("dragstart", function(e){
@@ -1789,9 +1828,9 @@
       '<div class="field"><label>Project name</label><input type="text" data-path="projectName" value="' + esc(c.projectName) + '"></div>' +
       '<div class="field"><label>Address</label><input type="text" data-path="address" value="' + esc(c.address) + '"></div>' +
       '<div class="field"><label>Project customer</label><input type="text" data-path="projectCustomer" value="' + esc(c.projectCustomer) + '"></div>' +
-      '<div class="field"><label>Direct customer(s)</label>' +
+      '<div class="field"><label>Contractor(s)</label>' +
         '<div id="directCustomersList">' + directCustomersHtml(c) + '</div>' +
-        '<button class="add-row-btn" id="addDirectCustomerBtnDetail">+ Add direct customer</button>' +
+        '<button class="add-row-btn" id="addDirectCustomerBtnDetail">+ Add contractor</button>' +
       '</div>' +
       '<div class="field"><label>Divisions</label><div class="checks">' +
         '<label class="checkline"><input type="checkbox" data-path="divisions.scs" ' + (c.divisions.scs?"checked":"") + '> SCS</label>' +
@@ -1831,7 +1870,7 @@
   }
 
   function directCustomersHtml(c){
-    if(!c.directCustomers.length) return '<div class="note-empty">No direct customers added yet.</div>';
+    if(!c.directCustomers.length) return '<div class="note-empty">No contractors added yet.</div>';
     return c.directCustomers.map(function(dc, i){
       return '<div class="inline-row" data-row-index="' + i + '" style="margin-bottom:6px;">' +
         '<input type="text" class="compact-input" style="flex:1;" data-field="name" value="' + esc(dc.name) + '" placeholder="Contractor or customer name">' +
@@ -1841,7 +1880,6 @@
   }
 
   function estimatingPanel(c){
-    var ec = c.estimateComplete;
     var versions = c.estimateVersions;
     if(activeEstimateVersion > versions.length - 1) activeEstimateVersion = versions.length - 1;
     if(activeEstimateVersion < 0) activeEstimateVersion = 0;
@@ -1873,19 +1911,22 @@
         (activeEstimateVersion > 0 ?
           '<div class="field" style="max-width:200px;"><label>Due date (this version)</label><input type="date" data-vfield="dueDate" value="' + esc(v.dueDate) + '"></div>'
           : '') +
+        '<p style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:14px 0 6px;">Pricing</p>' +
+        '<div class="inline-row">' +
+          '<div class="field" style="flex:1 1 110px;"><label>Material</label><input type="text" class="money-input" data-vfield="materialPrice" value="' + money(v.materialPrice||0) + '"></div>' +
+          '<div class="field" style="flex:1 1 110px;"><label>Labor</label><input type="text" class="money-input" data-vfield="laborPrice" value="' + money(v.laborPrice||0) + '"></div>' +
+          '<div class="field" style="flex:1 1 90px;"><label>Tax</label><input type="text" class="money-input" data-vfield="tax" value="' + money(v.tax||0) + '"></div>' +
+          '<div class="field" style="flex:1 1 80px;"><label>Hours</label><input type="number" step="0.5" data-vfield="laborHours" value="' + Number(v.laborHours||0) + '"></div>' +
+        '</div>' +
+        '<div class="field" style="max-width:220px;"><label>Estimate total</label>' +
+          '<div class="mono" style="font-size:16px;font-weight:700;padding:8px 0;">' + money(estimateTotal(c)) + '</div>' +
+        '</div>' +
         (versions.length > 1 ? '<button class="miniremove" id="removeVersionBtn">Remove this version</button>' : '') +
       '</div>' +
       '<datalist id="stageOptions"><option value="SD"><option value="DD"><option value="CD"><option value="Budgetary"><option value="Final"><option value="Reactivated"></datalist>' +
 
-      '<p class="section-title" style="margin-top:18px;">Estimate complete</p>' +
-      '<div class="inline-row">' +
-        '<div class="field" style="flex:1 1 110px;"><label>Material</label><input type="text" class="money-input" data-path="estimateComplete.materialPrice" value="' + money(ec.materialPrice||0) + '"></div>' +
-        '<div class="field" style="flex:1 1 110px;"><label>Labor</label><input type="text" class="money-input" data-path="estimateComplete.laborPrice" value="' + money(ec.laborPrice||0) + '"></div>' +
-        '<div class="field" style="flex:1 1 90px;"><label>Tax</label><input type="text" class="money-input" data-path="estimateComplete.tax" value="' + money(ec.tax||0) + '"></div>' +
-        '<div class="field" style="flex:1 1 80px;"><label>Hours</label><input type="number" step="0.5" data-path="estimateComplete.laborHours" value="' + Number(ec.laborHours||0) + '"></div>' +
-      '</div>' +
-      '<button class="btn small" id="markEstCompleteBtn" style="margin-top:14px;">Mark estimate complete &amp; alert ' + esc(c.salesperson || "salesperson") + '</button>' +
-      (ec.alertSent ? '<div class="note-empty">Alert sent ' + new Date(ec.completedAt).toLocaleString() + '</div>' : '') +
+      '<button class="btn small" id="markEstCompleteBtn" style="margin-top:8px;">Mark estimate complete &amp; alert ' + esc(c.salesperson || "salesperson") + '</button>' +
+      (c.estimateComplete.alertSent ? '<div class="note-empty">Alert sent ' + new Date(c.estimateComplete.completedAt).toLocaleString() + '</div>' : '') +
 
       '<p class="section-title" style="margin-top:18px;">Estimate submitted to</p>' +
       '<div id="submittedList">' + submittedListHtml(c) + '</div>' +
@@ -2190,7 +2231,7 @@
     var addVersionBtn = host.querySelector("#addVersionBtn");
     if(addVersionBtn){
       addVersionBtn.addEventListener("click", function(){
-        c.estimateVersions.push({id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:"", description:""});
+        c.estimateVersions.push({id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:"", description:"", materialPrice:0, laborPrice:0, tax:0, laborHours:0});
         activeEstimateVersion = c.estimateVersions.length - 1;
         saveCards();
         renderDetail();
@@ -2208,8 +2249,17 @@
     }
     host.querySelectorAll("[data-vfield]").forEach(function(el){
       el.addEventListener("change", function(){
-        c.estimateVersions[activeEstimateVersion][el.dataset.vfield] = el.value;
+        var field = el.dataset.vfield;
+        var val;
+        if(el.classList.contains("money-input")) val = parseMoney(el.value);
+        else if(el.type === "number") val = el.value === "" ? 0 : Number(el.value);
+        else val = el.value;
+        c.estimateVersions[activeEstimateVersion][field] = val;
         saveCards();
+        if(field === "materialPrice" || field === "laborPrice" || field === "tax"){
+          updateSummaryBar();
+          renderBoard();
+        }
         renderDetail();
       });
     });
