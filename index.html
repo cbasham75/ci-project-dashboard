@@ -303,6 +303,24 @@
   .cal-bubble.done{background:rgba(63,125,88,.16);border-color:rgba(63,125,88,.4);color:var(--green);font-weight:600;}
   .cal-bubble.pending{background:rgba(201,130,14,.18);border-color:rgba(201,130,14,.45);color:var(--amber);font-weight:600;}
 
+  .report-filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;padding:12px 14px;
+    background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:8px;}
+  .report-filters .field{margin-bottom:0;min-width:140px;}
+  .report-summary{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:16px;}
+  .report-summary .stat{background:var(--paper-raised);border:1px solid var(--line-soft);border-radius:8px;padding:10px 16px;min-width:120px;}
+  .report-summary .stat .label{font-size:11px;color:var(--ink-soft);}
+  .report-summary .stat .num{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;margin-top:2px;}
+  table.report-table{width:100%;border-collapse:collapse;font-size:13px;}
+  table.report-table th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.02em;color:var(--ink-soft);
+    border-bottom:2px solid var(--line);padding:8px 10px;white-space:nowrap;
+  }
+  table.report-table td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+  table.report-table tbody tr{cursor:pointer;}
+  table.report-table tbody tr:hover{background:var(--paper);}
+  table.report-table td.num, table.report-table th.num{text-align:right;font-family:'IBM Plex Mono',monospace;}
+  table.report-table tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:none;padding:9px 10px;}
+
   .login-screen{
     position:fixed;inset:0;background:var(--paper);z-index:100;
     display:flex;align-items:center;justify-content:center;padding:20px;
@@ -357,6 +375,7 @@
   <div class="header-search">
     <input type="text" id="searchInput" placeholder="🔎 Search name, customer, or #…">
   </div>
+  <button class="btn ghost small" id="headerRefreshBtn" title="Refresh board data">🔄 Refresh</button>
   <div class="user-field" id="userField" style="display:none;">
     Signed in as <strong id="signedInName" style="color:var(--ink);"></strong>
     <button class="btn ghost small" id="changePasswordBtn">Change password</button>
@@ -372,6 +391,7 @@
   <a class="btn ghost small" href="https://app.smartsheet.com/sheets/JFJHGJr5gpGFfj99X4v82WcWXV2jhgqWM379mfM1?view=calendar" target="_blank" rel="noopener">📆 Team Calendar</a>
   <button class="btn ghost small" id="calendarBtn">📅 Estimator Calendar</button>
   <button class="btn ghost small" id="archiveBtn">🗄️ On Hold / Lost / Archive</button>
+  <button class="btn ghost small" id="reportsBtn">📊 Reports</button>
   <button class="btn ghost small" id="exportBtn">Export JSON</button>
   <button class="btn ghost small" id="importBtn">Import JSON</button>
   <input type="file" id="importFile" accept="application/json" style="display:none;">
@@ -380,6 +400,7 @@
 <main class="board" id="board"></main>
 <div class="calendar" id="calendarView" style="display:none;"></div>
 <div class="calendar" id="archiveView" style="display:none;"></div>
+<div class="calendar" id="reportsView" style="display:none;"></div>
 
 <footer class="app-foot" id="appFooter" style="display:none;">
   MVP — data lives in this browser only (localStorage). Use Export JSON to back up or hand off to a database/GitHub build.
@@ -527,6 +548,8 @@
   var calMonthOffset = 0;
   var collapsedCO = {};
   var searchQuery = "";
+  var activeReport = "active_projects";
+  var reportFilters = {}; // per-report filter state, keyed by report id
   var teamMembers = ["Megan Ivy","Chris Basham","Tyler Murray","Kerry Peace","Hali McNair","Holli Treese"];
 
   function loadCardsFromCache(){
@@ -888,22 +911,32 @@
     });
   }
 
-  /* ---------------- Calendar / Archive views ---------------- */
+  /* ---------------- Calendar / Archive / Reports views ---------------- */
   function showCalendar(){
     document.getElementById("board").style.display = "none";
     document.getElementById("archiveView").style.display = "none";
+    document.getElementById("reportsView").style.display = "none";
     document.getElementById("calendarView").style.display = "block";
     renderCalendar();
   }
   function showArchive(){
     document.getElementById("board").style.display = "none";
     document.getElementById("calendarView").style.display = "none";
+    document.getElementById("reportsView").style.display = "none";
     document.getElementById("archiveView").style.display = "block";
     renderArchive();
+  }
+  function showReports(){
+    document.getElementById("board").style.display = "none";
+    document.getElementById("calendarView").style.display = "none";
+    document.getElementById("archiveView").style.display = "none";
+    document.getElementById("reportsView").style.display = "block";
+    renderReports();
   }
   function showBoard(){
     document.getElementById("calendarView").style.display = "none";
     document.getElementById("archiveView").style.display = "none";
+    document.getElementById("reportsView").style.display = "none";
     document.getElementById("board").style.display = "flex";
     renderBoard();
   }
@@ -959,6 +992,309 @@
         toast("Card reactivated");
       });
     });
+  }
+
+  /* ---------------- Reports ---------------- */
+  var REPORTS = [
+    {key:"active_projects", label:"Active Projects"},
+    {key:"date_range",      label:"By Date Range"},
+    {key:"pipeline",        label:"Pipeline"},
+    {key:"win_loss",        label:"Win / Loss"},
+    {key:"change_orders",   label:"Change Orders"},
+    {key:"customers",       label:"Customers"}
+  ];
+
+  function renderReports(){
+    var el = document.getElementById("reportsView");
+    var tabsHtml = REPORTS.map(function(r){
+      return '<button class="subtab ' + (r.key===activeReport?"active":"") + '" data-report-tab="' + r.key + '">' + r.label + '</button>';
+    }).join("");
+
+    el.innerHTML =
+      '<div class="cal-head">' +
+        '<button class="btn ghost" id="reportsBackBtn">← Back to Card view</button>' +
+        '<span class="cal-month-label">Reports</span>' +
+        '<span></span>' +
+      '</div>' +
+      '<div class="subtabs" style="margin-top:14px;">' + tabsHtml + '</div>' +
+      '<div id="reportContent"></div>';
+
+    el.querySelector("#reportsBackBtn").addEventListener("click", showBoard);
+    el.querySelectorAll("[data-report-tab]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        activeReport = btn.dataset.reportTab;
+        renderReports();
+      });
+    });
+
+    renderReportContent();
+  }
+
+  function renderReportContent(){
+    var host = document.getElementById("reportContent");
+    if(activeReport === "active_projects") host.innerHTML = activeProjectsReportHtml();
+    else if(activeReport === "date_range") host.innerHTML = dateRangeReportHtml();
+    else if(activeReport === "pipeline") host.innerHTML = pipelineReportHtml();
+    else if(activeReport === "win_loss") host.innerHTML = winLossReportHtml();
+    else if(activeReport === "change_orders") host.innerHTML = changeOrdersReportHtml();
+    else if(activeReport === "customers") host.innerHTML = customersReportHtml();
+    wireReportInteractions(host);
+  }
+
+  function estimatingStageLabel(c){
+    if(c.status !== "estimating") return "";
+    var s = ESTIMATING_STAGES.find(function(x){ return x.key === c.estimatingStage; });
+    return s ? " · " + s.label : "";
+  }
+
+  // 1. Active Projects — everything not Closed/Archived.
+  function activeProjectsReportHtml(){
+    var rows = cards.filter(function(c){ return c.status !== "project_closed" && !isArchived(c); });
+    rows.sort(function(a,b){
+      var ia = COLUMNS.findIndex(function(col){ return col.key === a.status; });
+      var ib = COLUMNS.findIndex(function(col){ return col.key === b.status; });
+      return ia - ib || a.id.localeCompare(b.id);
+    });
+    var total = rows.reduce(function(s,c){ return s + totalValue(c); }, 0);
+    var body = rows.map(function(c){
+      return '<tr data-open-card="' + c.id + '">' +
+        '<td><strong>' + esc(c.projectName||"Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(c.id) + '</div></td>' +
+        '<td>' + esc(stageLabel(c.status)) + esc(estimatingStageLabel(c)) + '</td>' +
+        '<td>' + esc(c.projectCustomer||"—") + '</td>' +
+        '<td>' + esc(c.projectCreated.pmName||"—") + '</td>' +
+        '<td class="num">' + money(totalValue(c)) + '</td>' +
+      '</tr>';
+    }).join("");
+    return '<div class="report-summary">' +
+        '<div class="stat"><div class="label">Active projects</div><div class="num">' + rows.length + '</div></div>' +
+        '<div class="stat"><div class="label">Total value</div><div class="num">' + money(total) + '</div></div>' +
+      '</div>' +
+      '<table class="report-table"><thead><tr><th>Project</th><th>Status</th><th>Customer</th><th>PM</th><th class="num">Value</th></tr></thead>' +
+      '<tbody>' + (body || '<tr><td colspan="5" style="color:var(--ink-soft);">No active projects.</td></tr>') + '</tbody></table>';
+  }
+
+  // 2. Projects by Date Range — Bid Due, Created, or Completion date.
+  function dateRangeReportHtml(){
+    var f = reportFilters.date_range || {type:"bidDue", start:"", end:""};
+    reportFilters.date_range = f;
+
+    function dateOf(c){
+      if(f.type === "created") return c.createdAt ? c.createdAt.slice(0,10) : "";
+      if(f.type === "completed") return c.projectComplete.dateCompleted || "";
+      return c.bidDueDate || "";
+    }
+
+    var rows = cards.filter(function(c){
+      var d = dateOf(c);
+      if(!d) return false;
+      if(f.start && d < f.start) return false;
+      if(f.end && d > f.end) return false;
+      return true;
+    });
+    rows.sort(function(a,b){ return dateOf(a).localeCompare(dateOf(b)); });
+    var total = rows.reduce(function(s,c){ return s + totalValue(c); }, 0);
+
+    var body = rows.map(function(c){
+      return '<tr data-open-card="' + c.id + '">' +
+        '<td><strong>' + esc(c.projectName||"Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(c.id) + '</div></td>' +
+        '<td>' + esc(dateOf(c)) + '</td>' +
+        '<td>' + esc(stageLabel(c.status)) + '</td>' +
+        '<td>' + esc(c.projectCustomer||"—") + '</td>' +
+        '<td class="num">' + money(totalValue(c)) + '</td>' +
+      '</tr>';
+    }).join("");
+
+    return '<div class="report-filters">' +
+        '<div class="field"><label>Date type</label><select id="dateRangeType">' +
+          '<option value="bidDue"' + (f.type==="bidDue"?" selected":"") + '>Bid due date</option>' +
+          '<option value="created"' + (f.type==="created"?" selected":"") + '>Created date</option>' +
+          '<option value="completed"' + (f.type==="completed"?" selected":"") + '>Completion date</option>' +
+        '</select></div>' +
+        '<div class="field"><label>From</label><input type="date" id="dateRangeStart" value="' + esc(f.start) + '"></div>' +
+        '<div class="field"><label>To</label><input type="date" id="dateRangeEnd" value="' + esc(f.end) + '"></div>' +
+      '</div>' +
+      '<div class="report-summary">' +
+        '<div class="stat"><div class="label">Projects</div><div class="num">' + rows.length + '</div></div>' +
+        '<div class="stat"><div class="label">Total value</div><div class="num">' + money(total) + '</div></div>' +
+      '</div>' +
+      '<table class="report-table"><thead><tr><th>Project</th><th>Date</th><th>Status</th><th>Customer</th><th class="num">Value</th></tr></thead>' +
+      '<tbody>' + (body || '<tr><td colspan="5" style="color:var(--ink-soft);">No projects in that range.</td></tr>') + '</tbody></table>';
+  }
+
+  // 3. Pipeline — Opportunity + Estimating, sorted by bid due date.
+  function pipelineReportHtml(){
+    var rows = cards.filter(function(c){ return !isArchived(c) && (c.status==="opportunity" || c.status==="estimating"); });
+    rows.sort(function(a,b){
+      var da = a.bidDueDate || "9999-99-99";
+      var db = b.bidDueDate || "9999-99-99";
+      return da.localeCompare(db);
+    });
+    var total = rows.reduce(function(s,c){ return s + totalValue(c); }, 0);
+    var body = rows.map(function(c){
+      return '<tr data-open-card="' + c.id + '">' +
+        '<td><strong>' + esc(c.projectName||"Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(c.id) + '</div></td>' +
+        '<td>' + esc(stageLabel(c.status)) + esc(estimatingStageLabel(c)) + '</td>' +
+        '<td>' + esc(c.projectCustomer||"—") + '</td>' +
+        '<td>' + esc(c.bidDueDate||"—") + (c.bidDueTime ? " " + esc(c.bidDueTime) : "") + '</td>' +
+        '<td class="num">' + money(totalValue(c)) + '</td>' +
+      '</tr>';
+    }).join("");
+    return '<div class="report-summary">' +
+        '<div class="stat"><div class="label">In pipeline</div><div class="num">' + rows.length + '</div></div>' +
+        '<div class="stat"><div class="label">Total value</div><div class="num">' + money(total) + '</div></div>' +
+      '</div>' +
+      '<table class="report-table"><thead><tr><th>Project</th><th>Status</th><th>Customer</th><th>Bid Due</th><th class="num">Value</th></tr></thead>' +
+      '<tbody>' + (body || '<tr><td colspan="5" style="color:var(--ink-soft);">Nothing in the pipeline.</td></tr>') + '</tbody></table>';
+  }
+
+  // 4. Win / Loss — Won = reached Active Project or later. Lost = H/L/A status is Lost.
+  function winLossReportHtml(){
+    var activeIdx = COLUMNS.findIndex(function(col){ return col.key === "project_created"; });
+    var won = cards.filter(function(c){
+      var idx = COLUMNS.findIndex(function(col){ return col.key === c.status; });
+      return idx >= activeIdx;
+    });
+    var lost = cards.filter(function(c){ return c.hla && c.hla.status === "lost"; });
+    var wonValue = won.reduce(function(s,c){ return s + totalValue(c); }, 0);
+    var lostValue = lost.reduce(function(s,c){ return s + totalValue(c); }, 0);
+    var winRate = (won.length + lost.length) ? Math.round(won.length / (won.length + lost.length) * 100) : 0;
+
+    function rowsHtml(list){
+      if(!list.length) return '<tr><td colspan="3" style="color:var(--ink-soft);">None yet.</td></tr>';
+      return list.map(function(c){
+        return '<tr data-open-card="' + c.id + '">' +
+          '<td><strong>' + esc(c.projectName||"Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(c.id) + '</div></td>' +
+          '<td>' + esc(c.projectCustomer||"—") + '</td>' +
+          '<td class="num">' + money(totalValue(c)) + '</td>' +
+        '</tr>';
+      }).join("");
+    }
+
+    return '<div class="report-summary">' +
+        '<div class="stat"><div class="label">Won</div><div class="num">' + won.length + '</div></div>' +
+        '<div class="stat"><div class="label">Lost</div><div class="num">' + lost.length + '</div></div>' +
+        '<div class="stat"><div class="label">Win rate</div><div class="num">' + winRate + '%</div></div>' +
+        '<div class="stat"><div class="label">$ Won</div><div class="num">' + money(wonValue) + '</div></div>' +
+        '<div class="stat"><div class="label">$ Lost</div><div class="num">' + money(lostValue) + '</div></div>' +
+      '</div>' +
+      '<p class="section-title">Won</p>' +
+      '<table class="report-table"><thead><tr><th>Project</th><th>Customer</th><th class="num">Value</th></tr></thead><tbody>' + rowsHtml(won) + '</tbody></table>' +
+      '<p class="section-title" style="margin-top:20px;">Lost</p>' +
+      '<table class="report-table"><thead><tr><th>Project</th><th>Customer</th><th class="num">Value</th></tr></thead><tbody>' + rowsHtml(lost) + '</tbody></table>';
+  }
+
+  // 5. Change Order Summary — every CO across every project, filterable.
+  function changeOrdersReportHtml(){
+    var f = reportFilters.change_orders || {approved:"any", sent:"any", billed:"any"};
+    reportFilters.change_orders = f;
+
+    var rows = [];
+    cards.forEach(function(c){
+      (c.changeOrders||[]).forEach(function(co){ rows.push({card:c, co:co}); });
+    });
+    function matchTri(val, filterVal){
+      if(filterVal === "any") return true;
+      return filterVal === "yes" ? !!val : !val;
+    }
+    rows = rows.filter(function(r){
+      return matchTri(r.co.approved, f.approved) && matchTri(r.co.sent, f.sent) && matchTri(r.co.billed, f.billed);
+    });
+    var total = rows.reduce(function(s,r){ return s + (Number(r.co.materialPrice)||0) + (Number(r.co.laborPrice)||0) + (Number(r.co.tax)||0); }, 0);
+
+    var body = rows.map(function(r){
+      var val = (Number(r.co.materialPrice)||0) + (Number(r.co.laborPrice)||0) + (Number(r.co.tax)||0);
+      return '<tr data-open-card="' + r.card.id + '">' +
+        '<td><strong>' + esc(r.card.projectName||"Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(r.card.id) + ' · ' + esc(r.co.num) + '</div></td>' +
+        '<td>' + esc(r.co.description||"—") + '</td>' +
+        '<td>' + (r.co.approved?"✅":"—") + '</td>' +
+        '<td>' + (r.co.sent?"✅":"—") + '</td>' +
+        '<td>' + (r.co.billed?"✅":"—") + '</td>' +
+        '<td class="num">' + money(val) + '</td>' +
+      '</tr>';
+    }).join("");
+
+    function triSelect(id, label, val){
+      return '<div class="field"><label>' + label + '</label><select id="' + id + '">' +
+        '<option value="any"' + (val==="any"?" selected":"") + '>Any</option>' +
+        '<option value="yes"' + (val==="yes"?" selected":"") + '>Yes</option>' +
+        '<option value="no"' + (val==="no"?" selected":"") + '>No</option>' +
+      '</select></div>';
+    }
+
+    return '<div class="report-filters">' +
+        triSelect("coFilterApproved","Approved",f.approved) +
+        triSelect("coFilterSent","Sent",f.sent) +
+        triSelect("coFilterBilled","Billed",f.billed) +
+      '</div>' +
+      '<div class="report-summary">' +
+        '<div class="stat"><div class="label">Change orders</div><div class="num">' + rows.length + '</div></div>' +
+        '<div class="stat"><div class="label">Total value</div><div class="num">' + money(total) + '</div></div>' +
+      '</div>' +
+      '<table class="report-table"><thead><tr><th>Project · CO</th><th>Description</th><th>Approved</th><th>Sent</th><th>Billed</th><th class="num">Value</th></tr></thead>' +
+      '<tbody>' + (body || '<tr><td colspan="6" style="color:var(--ink-soft);">No change orders match.</td></tr>') + '</tbody></table>';
+  }
+
+  // 6. Customer Report — grouped by Project Customer or Direct Customer.
+  function customersReportHtml(){
+    var f = reportFilters.customers || {groupBy:"project"};
+    reportFilters.customers = f;
+
+    var groups = {};
+    function addTo(name, value){
+      if(!groups[name]) groups[name] = {count:0, value:0};
+      groups[name].count++;
+      groups[name].value += value;
+    }
+    cards.forEach(function(c){
+      if(isArchived(c)) return;
+      var val = totalValue(c);
+      if(f.groupBy === "project"){
+        addTo(c.projectCustomer && c.projectCustomer.trim() ? c.projectCustomer.trim() : "(none listed)", val);
+      } else {
+        var list = (c.directCustomers||[]).filter(function(dc){ return dc.name && dc.name.trim(); });
+        if(!list.length) addTo("(none listed)", val);
+        else list.forEach(function(dc){ addTo(dc.name.trim(), val); });
+      }
+    });
+
+    var names = Object.keys(groups).sort(function(a,b){ return groups[b].value - groups[a].value; });
+    var totalAll = names.reduce(function(s,n){ return s + groups[n].value; }, 0);
+    var body = names.map(function(n){
+      return '<tr><td>' + esc(n) + '</td><td class="num">' + groups[n].count + '</td><td class="num">' + money(groups[n].value) + '</td></tr>';
+    }).join("");
+
+    return '<div class="report-filters">' +
+        '<div class="field"><label>Group by</label><select id="customerGroupBy">' +
+          '<option value="project"' + (f.groupBy==="project"?" selected":"") + '>Project customer</option>' +
+          '<option value="direct"' + (f.groupBy==="direct"?" selected":"") + '>Direct customer</option>' +
+        '</select></div>' +
+      '</div>' +
+      '<div class="report-summary">' +
+        '<div class="stat"><div class="label">Customers</div><div class="num">' + names.length + '</div></div>' +
+        '<div class="stat"><div class="label">Total value</div><div class="num">' + money(totalAll) + '</div></div>' +
+      '</div>' +
+      '<table class="report-table"><thead><tr><th>Customer</th><th class="num">Projects</th><th class="num">Total value</th></tr></thead>' +
+      '<tbody>' + (body || '<tr><td colspan="3" style="color:var(--ink-soft);">No customer data yet.</td></tr>') + '</tbody></table>';
+  }
+
+  function wireReportInteractions(host){
+    host.querySelectorAll("[data-open-card]").forEach(function(tr){
+      tr.addEventListener("click", function(){ openDetail(tr.dataset.openCard); });
+    });
+    var dt = host.querySelector("#dateRangeType");
+    if(dt) dt.addEventListener("change", function(){ reportFilters.date_range.type = dt.value; renderReportContent(); });
+    var ds = host.querySelector("#dateRangeStart");
+    if(ds) ds.addEventListener("change", function(){ reportFilters.date_range.start = ds.value; renderReportContent(); });
+    var de = host.querySelector("#dateRangeEnd");
+    if(de) de.addEventListener("change", function(){ reportFilters.date_range.end = de.value; renderReportContent(); });
+    var ca = host.querySelector("#coFilterApproved");
+    if(ca) ca.addEventListener("change", function(){ reportFilters.change_orders.approved = ca.value; renderReportContent(); });
+    var cs = host.querySelector("#coFilterSent");
+    if(cs) cs.addEventListener("change", function(){ reportFilters.change_orders.sent = cs.value; renderReportContent(); });
+    var cb = host.querySelector("#coFilterBilled");
+    if(cb) cb.addEventListener("change", function(){ reportFilters.change_orders.billed = cb.value; renderReportContent(); });
+    var cg = host.querySelector("#customerGroupBy");
+    if(cg) cg.addEventListener("change", function(){ reportFilters.customers.groupBy = cg.value; renderReportContent(); });
   }
 
   function renderCalendar(){
@@ -2138,12 +2474,16 @@
     searchQuery = e.target.value.trim();
     renderBoard();
   });
+  document.getElementById("headerRefreshBtn").addEventListener("click", function(){
+    backgroundRefresh(true);
+  });
 
   document.getElementById("calendarBtn").addEventListener("click", function(){
     calMonthOffset = 0;
     showCalendar();
   });
   document.getElementById("archiveBtn").addEventListener("click", showArchive);
+  document.getElementById("reportsBtn").addEventListener("click", showReports);
 
   document.getElementById("exportBtn").addEventListener("click", function(){
     var blob = new Blob([JSON.stringify({cards:cards, alerts:alerts}, null, 2)], {type:"application/json"});
@@ -2381,6 +2721,38 @@
     cards.forEach(migrateCard);
     renderBoard();
     renderAlerts();
+    startAutoRefresh();
+  }
+
+  // Keeps the board/calendar/archive/alerts current for everyone without anyone having
+  // to reload the page. Skips refreshing card data while a card is open for editing, so
+  // a background pull can never silently overwrite someone's in-progress edit — it
+  // picks back up automatically the moment they close that card.
+  var AUTO_REFRESH_MS = 60000;
+  var autoRefreshTimer = null;
+  function startAutoRefresh(){
+    if(autoRefreshTimer) return;
+    autoRefreshTimer = setInterval(function(){ backgroundRefresh(false); }, AUTO_REFRESH_MS);
+  }
+  async function backgroundRefresh(manual){
+    if(!currentSession || !supabaseClient) return;
+    try {
+      alerts = await loadAlertsRemote();
+      renderAlerts();
+
+      if(!activeDetailId){
+        cards = await loadCardsRemote();
+        cards.forEach(migrateCard);
+        if(document.getElementById("board").style.display !== "none") renderBoard();
+        if(document.getElementById("calendarView").style.display !== "none") renderCalendar();
+        if(document.getElementById("archiveView").style.display !== "none") renderArchive();
+        if(document.getElementById("reportsView").style.display !== "none") renderReportContent();
+      }
+      if(manual) toast(activeDetailId ? "Alerts refreshed — close this card to refresh project data" : "Refreshed");
+    } catch(err){
+      console.error("Background refresh failed", err);
+      if(manual) toast("Couldn't refresh — check your connection");
+    }
   }
 
   async function bootstrapAuth(){
