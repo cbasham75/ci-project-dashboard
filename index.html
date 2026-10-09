@@ -152,6 +152,25 @@
   }
   .column-head .total{font-size:11px;color:var(--ink-soft);margin-top:4px;}
   .column-body{padding:10px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;flex:1;}
+  #woSheet{position:fixed;inset:0;z-index:200;background:#e5e5e5;overflow:auto;padding:0 0 40px;}
+  #woSheet .wo-bar{position:sticky;top:0;background:#222;padding:10px 16px;display:flex;gap:10px;justify-content:center;z-index:1;}
+  #woSheet .wo-page{background:#fff;color:#111;width:8.5in;max-width:100%;box-sizing:border-box;margin:16px auto;padding:.4in .5in;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.3;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+  .wo-page h1{font-size:22px;margin:0;letter-spacing:.5px;}
+  .wo-page h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid #111;padding-bottom:2px;margin:10px 0 5px;}
+  .wo-page table{width:100%;border-collapse:collapse;}
+  .wo-page td,.wo-page th{border:1px solid #888;padding:3px 6px;vertical-align:top;text-align:left;}
+  .wo-page th{background:#eee;font-size:10px;white-space:nowrap;width:1%;}
+  .wo-page .wo-box{border:1px solid #888;min-height:90px;padding:6px;white-space:pre-wrap;}
+  .wo-page .wo-line{border-bottom:1px solid #111;height:26px;}
+  .wo-page .wo-sig{display:flex;gap:24px;margin-top:20px;}
+  .wo-page .wo-sig div{flex:1;border-top:1px solid #111;padding-top:3px;font-size:11px;}
+  @media print{
+    body.wo-printing > *:not(#woSheet){display:none !important;}
+    body.wo-printing #woSheet{position:static;background:#fff;padding:0;overflow:visible;}
+    #woSheet .wo-bar{display:none !important;}
+    #woSheet .wo-page{box-shadow:none;margin:0;padding:0;width:auto;}
+    @page{margin:.5in;}
+  }
   .permit-row{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px;align-items:end;}
   .permit-row .field.permit-checks{margin-bottom:13px;min-height:38px;}
   .permit-checks{display:flex;align-items:center;min-height:38px;}
@@ -495,6 +514,8 @@
   </div>
 </div>
 
+<div id="woSheet" style="display:none;"></div>
+
 <!-- Service Job Modal -->
 <div class="overlay" id="serviceOverlay">
   <div class="modal" id="serviceModal"></div>
@@ -647,6 +668,7 @@
       pc.links = pc.portalLink ? [{title:"Portal", url:pc.portalLink}] : [];
     }
     if(typeof pc.additionalInfo !== "string") pc.additionalInfo = "";
+    if(typeof pc.scopeOfWork !== "string") pc.scopeOfWork = "";
     if(typeof pc.parking !== "string") pc.parking = "";
     if(typeof pc.workHours !== "string") pc.workHours = "";
     if(!c.pm) c.pm = {percentComplete:0, notes:[], billing:[]};
@@ -924,7 +946,7 @@
       submittedTo: [],
       projectCreated: {
         winningContractor:"", pmName:"", contacts:[], parking:"",
-        workHours:"", accessMethod:"", additionalInfo:"", permitRequired:false, permitNumber:"", buildingPermitNumber:"", submittalsRequired:false, companyId:"", links:[]
+        workHours:"", accessMethod:"", additionalInfo:"", permitRequired:false, permitNumber:"", buildingPermitNumber:"", submittalsRequired:false, companyId:"", scopeOfWork:"", links:[]
       },
       pm: { notes:[], percentComplete:0, billing:[], links:[], apContact:{name:"", email:"", phone:"", notes:""} },
       projectComplete: {dateCompleted:"", inspectionPassed:false, testResults:false, asBuilts:false},
@@ -994,6 +1016,84 @@
   window.addEventListener("resize", syncTopbarHeight);
   setTimeout(syncTopbarHeight, 0);
   setInterval(syncTopbarHeight, 1500);
+
+  /* ---------------- Work orders (printable) ---------------- */
+  function workOrderFromCard(c){
+    var pc = c.projectCreated || {};
+    var d = c.divisions || {};
+    return {
+      type:"Project", number:c.id, title:c.projectName || "",
+      customer: pc.winningContractor || c.projectCustomer || "",
+      contractors:(c.directCustomers||[]).map(function(x){ return x.name; }).filter(Boolean).join(", "),
+      address:c.address || "",
+      divisions:[d.scs&&"SCS", d.security&&"Security", d.av&&"AV", d.demo&&"Demo"].filter(Boolean).join(", "),
+      scope:pc.scopeOfWork || "",
+      dateLabel:"Project manager", dateValue:pc.pmName || "",
+      assigned:pc.pmName || "", salesperson:c.salesperson || "",
+      contacts:(pc.contacts||[]).map(function(x){ return x.name; }).filter(Boolean),
+      parking:pc.parking || "", workHours:pc.workHours || "", access:pc.accessMethod || "", info:pc.additionalInfo || "",
+      permitRequired:!!pc.permitRequired, ciPermit:pc.permitNumber || "", bldgPermit:pc.buildingPermitNumber || "", submittals:!!pc.submittalsRequired
+    };
+  }
+  function workOrderFromService(j){
+    var d = j.divisions || {};
+    return {
+      type:"Service Job", number:j.id || "(unsaved)", title:j.jobName || "",
+      customer:j.customer || "", contractors:"", address:j.address || "",
+      divisions:[d.scs&&"SCS", d.security&&"Security", d.av&&"AV", d.demo&&"Demo"].filter(Boolean).join(", "),
+      scope:j.description || "",
+      dateLabel:"Service date", dateValue:[j.serviceDate, j.serviceTime].filter(Boolean).join(" "),
+      assigned:j.assignedTo || "", salesperson:"",
+      contacts:(j.contacts||[]).map(function(x){ return x.name; }).filter(Boolean),
+      parking:"", workHours:"", access:"", info:j.additionalInfo || "",
+      permitRequired:!!j.permitRequired, ciPermit:j.permitNumber || "", bldgPermit:j.buildingPermitNumber || "", submittals:!!j.submittalsRequired
+    };
+  }
+  function showWorkOrder(w){
+    // Deliberately excludes money, labor hours, salesperson and other internal info.
+    function cell(label, val){ return '<th>' + label + '</th><td>' + (val ? esc(val) : '&nbsp;') + '</td>'; }
+    function row(label, val){ return val ? '<tr>' + cell(label, val) + '<th></th><td></td></tr>'.replace('<th></th><td></td>','') : ''; }
+    function full(label, val){ return val ? '<tr><th>' + label + '</th><td colspan="3">' + esc(val) + '</td></tr>' : ''; }
+    var matRows = "";
+    for(var i=0;i<6;i++) matRows += '<tr><td style="height:20px;">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>';
+    var permitBits = [];
+    if(w.permitRequired) permitBits.push("Permit required");
+    if(w.ciPermit) permitBits.push("CI # " + w.ciPermit);
+    if(w.bldgPermit) permitBits.push("Building # " + w.bldgPermit);
+    if(w.submittals) permitBits.push("Submittals required");
+    var el = document.getElementById("woSheet");
+    el.innerHTML =
+      '<div class="wo-bar"><button class="btn primary" id="woPrintBtn">🖨️ Print / Save as PDF</button><button class="btn" id="woCloseBtn">Close</button></div>' +
+      '<div class="wo-page">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:6px;">' +
+          '<div><h1>WORK ORDER</h1><div style="font-size:12px;">Cabling Innovations</div></div>' +
+          '<div style="text-align:right;"><div style="font-size:17px;font-weight:700;">' + esc(w.number) + '</div><div>' + esc(w.type) + ' · Issued ' + new Date().toLocaleDateString() + '</div></div>' +
+        '</div>' +
+        '<table style="margin-top:8px;">' +
+          '<tr>' + cell("Job / project", w.title) + cell(w.dateLabel, w.dateValue) + '</tr>' +
+          '<tr>' + cell("Customer", w.customer) + cell("Assigned to", w.assigned) + '</tr>' +
+          full("Contractor(s)", w.contractors) +
+          '<tr><th>Site address</th><td colspan="3">' + (w.address ? esc(w.address) : '&nbsp;') + '</td></tr>' +
+          '<tr><th>Site contact(s)</th><td colspan="3">' + (w.contacts.length ? esc(w.contacts.join("  |  ")) : '&nbsp;') + '</td></tr>' +
+          full("Divisions", w.divisions) + full("Parking", w.parking) + full("Site access hours", w.workHours) + full("Access method", w.access) +
+          full("Permits", permitBits.join(" · ")) + full("Site notes", w.info) +
+        '</table>' +
+        '<h2>Scope of work</h2><div class="wo-box" style="min-height:90px;">' + esc(w.scope) + '</div>' +
+        '<h2>Completed by technician</h2>' +
+        '<table><tr><th>Technician(s)</th><td>&nbsp;</td><th>Date</th><td style="width:110px;">&nbsp;</td><th>Arrive</th><td style="width:70px;">&nbsp;</td><th>Depart</th><td style="width:70px;">&nbsp;</td></tr></table>' +
+        '<div style="font-weight:700;margin:7px 0 2px;">Work performed</div><div class="wo-box" style="min-height:150px;"></div>' +
+        '<div style="font-weight:700;margin:7px 0 2px;">Materials used</div>' +
+        '<table style="table-layout:fixed;"><tr><th style="width:10%;">Qty</th><th style="width:56%;">Description</th><th style="width:34%;">Part # / Location</th></tr>' + matRows + '</table>' +
+        '<div style="margin-top:7px;">☐ Work complete &nbsp;&nbsp; ☐ Return visit needed &nbsp;&nbsp; ☐ Additional work / change order needed</div>' +
+        '<div class="wo-sig"><div>Customer name (print)</div><div>Customer signature</div><div style="flex:0 0 90px;">Date</div></div>' +
+        '<div class="wo-sig" style="margin-top:16px;"><div>Technician name (print)</div><div>Technician signature</div><div style="flex:0 0 90px;">Date</div></div>' +
+      '</div>';
+    el.style.display = "block";
+    document.body.classList.add("wo-printing");
+    function closeWo(){ el.style.display = "none"; document.body.classList.remove("wo-printing"); }
+    el.querySelector("#woCloseBtn").addEventListener("click", closeWo);
+    el.querySelector("#woPrintBtn").addEventListener("click", function(){ window.print(); });
+  }
 
   /* ---------------- Service Jobs ---------------- */
   var serviceJobs = [];
@@ -1143,29 +1243,18 @@
           '<div class="field"><label>Service time</label><select data-sj="serviceTime">' + timeOptionsHtml(j.serviceTime) + '</select></div>' +
         '</div>' +
         '<div class="row2">' +
-          '<div class="field"><label>Salesperson</label><select data-sj="salesperson">' + teamMemberOptionsHtml(j.salesperson) + '</select></div>' +
-          '<div class="field"><label>Assigned to (tech / PM)</label><select data-sj="assignedTo">' + teamMemberOptionsHtml(j.assignedTo) + '</select></div>' +
+          '<div class="field"><label>Assigned to (tech)</label><select data-sj="assignedTo">' + teamMemberOptionsHtml(j.assignedTo) + '</select></div>' +
+          '<div class="field"><label>Service amount</label><input type="text" class="money-input" data-sj="amount" data-money="1" value="' + money(Number(j.amount)||0) + '"></div>' +
         '</div>' +
-        '<div class="field"><label>Service amount</label><input type="text" class="money-input" data-sj="amount" data-money="1" value="' + money(Number(j.amount)||0) + '"></div>' +
 
-        '<p class="section-title" style="margin-top:18px;">Project setup</p>' +
-        '<div class="field"><label>Site contacts</label><div id="sjContacts">' + sjContactsHtml() + '</div><button type="button" class="add-row-btn" id="sjAddContact">+ Add contact</button></div>' +
-        '<div class="field"><label>Parking</label><input type="text" data-sj="parking" value="' + esc(j.parking) + '"></div>' +
-        '<div class="field"><label>Work hours</label><input type="text" data-sj="workHours" value="' + esc(j.workHours) + '"></div>' +
-        '<div class="field"><label>Access method</label><input type="text" data-sj="accessMethod" value="' + esc(j.accessMethod) + '"></div>' +
-        '<div class="field"><label>Additional information</label><textarea data-sj="additionalInfo">' + esc(j.additionalInfo) + '</textarea></div>' +
-        '<div class="permit-row">' +
-          '<div class="field permit-checks">' + chk("Permit required","permitRequired",j.permitRequired) + '</div>' +
-          '<div class="field"><label>CI Permit Number</label><input type="text" data-sj="permitNumber" value="' + esc(j.permitNumber) + '"></div>' +
-          '<div class="field"><label>Building Permit Number</label><input type="text" data-sj="buildingPermitNumber" value="' + esc(j.buildingPermitNumber) + '"></div>' +
-        '</div>' +
-        '<div class="field" style="margin-top:6px;">' + chk("Submittals required","submittalsRequired",j.submittalsRequired) + '</div>' +
-        '<div class="field"><label>Links</label><div id="sjLinks">' + sjLinksHtml() + '</div><button type="button" class="add-row-btn" id="sjAddLink">+ Add link</button></div>' +
+        '<div class="field"><label>Site contact(s)</label><div id="sjContacts">' + sjContactsHtml() + '</div><button type="button" class="add-row-btn" id="sjAddContact">+ Add contact</button></div>' +
+        '<div class="field"><label>Access / site notes (parking, how to get in, who to see)</label><textarea data-sj="additionalInfo">' + esc(j.additionalInfo) + '</textarea></div>' +
 
         '<p class="section-title" style="margin-top:18px;">Completion</p>' +
-        '<div class="field">' + chk("Job complete","completion.complete",cp.complete) + '</div>' +
-        '<div class="field"><label>Date completed</label><input type="date" data-sj="completion.dateCompleted" value="' + esc(cp.dateCompleted) + '"></div>' +
-        '<div class="checks" style="margin-bottom:13px;">' + chk("Inspection passed","completion.inspectionPassed",cp.inspectionPassed) + chk("Test results","completion.testResults",cp.testResults) + chk("As-builts","completion.asBuilts",cp.asBuilts) + '</div>' +
+        '<div class="row2">' +
+          '<div class="field">' + chk("Job complete","completion.complete",cp.complete) + '</div>' +
+          '<div class="field"><label>Date completed</label><input type="date" data-sj="completion.dateCompleted" value="' + esc(cp.dateCompleted) + '"></div>' +
+        '</div>' +
         '<div class="row2">' +
           '<div class="field">' + chk("Invoiced","completion.invoiced",cp.invoiced) + '</div>' +
           '<div class="field"><label>Invoice number</label><input type="text" data-sj="completion.invoiceNumber" value="' + esc(cp.invoiceNumber) + '"></div>' +
@@ -1173,6 +1262,7 @@
       '</div>' +
       '<div class="modal-foot">' +
         (isNew ? '' : '<button class="btn ghost" id="sjDeleteBtn" style="color:var(--red);margin-right:auto;">Delete</button>') +
+        '<button class="btn" id="sjWoBtn">📄 Work Order</button>' +
         '<button class="btn ghost" id="sjCancelBtn">Cancel</button>' +
         '<button class="btn primary" id="sjSaveBtn">💾 ' + (isNew ? "Create service job" : "Save") + '</button>' +
       '</div>';
@@ -1201,7 +1291,6 @@
       });
     }
     bindRows("sjContacts","contacts");
-    bindRows("sjLinks","links");
     modal.querySelectorAll("[data-sj-remove]").forEach(function(el){
       el.addEventListener("click", function(){
         sjDraft[el.dataset.sjRemove].splice(Number(el.dataset.i), 1);
@@ -1209,10 +1298,10 @@
       });
     });
     modal.querySelector("#sjAddContact").addEventListener("click", function(){ sjDraft.contacts.push({name:""}); renderServiceModal(); });
-    modal.querySelector("#sjAddLink").addEventListener("click", function(){ sjDraft.links.push({title:"", url:""}); renderServiceModal(); });
     modal.querySelector("#sjCloseX").addEventListener("click", function(){ closeOverlay("serviceOverlay"); });
     modal.querySelector("#sjCancelBtn").addEventListener("click", function(){ closeOverlay("serviceOverlay"); });
     modal.querySelector("#sjSaveBtn").addEventListener("click", saveServiceJob);
+    modal.querySelector("#sjWoBtn").addEventListener("click", function(){ showWorkOrder(workOrderFromService(sjDraft)); });
     var del = modal.querySelector("#sjDeleteBtn");
     if(del) del.addEventListener("click", function(){
       if(!confirm("Delete " + sjDraft.id + " — " + (sjDraft.jobName || "this service job") + "? This can't be undone.")) return;
@@ -1297,6 +1386,7 @@
   var libSelectedId = "";
   var libOpen = true;
   var winCoOpen = true;
+  var scopeOpen = true;
 
   function blankCompany(){
     return {
@@ -2476,6 +2566,7 @@
       '<div class="field"><label>Work hours</label><input type="text" data-path="projectCreated.workHours" value="' + esc(pc.workHours) + '"></div>' +
       '<div class="field"><label>Access method</label><input type="text" data-path="projectCreated.accessMethod" value="' + esc(pc.accessMethod) + '"></div>' +
       '<div class="field"><label>Additional information</label><textarea data-path="projectCreated.additionalInfo">' + esc(pc.additionalInfo) + '</textarea></div>' +
+      scopeBlockHtml(c) +
 
       '<div class="permit-row">' +
         '<div class="field permit-checks">' +
@@ -2523,6 +2614,14 @@
     }).join("");
   }
 
+  function scopeBlockHtml(c){
+    var txt = c.projectCreated.scopeOfWork || "";
+    return '<div class="field">' +
+      '<button type="button" class="add-row-btn" id="toggleScopeBtn">' + (scopeOpen ? "▼ Hide" : "▶ Show") + ' scope of work' + (!scopeOpen && txt.trim() ? ' (has content)' : '') + '</button>' +
+      (scopeOpen ? '<textarea data-path="projectCreated.scopeOfWork" style="min-height:140px;margin-top:8px;" placeholder="Describe the scope of work for this project…">' + esc(txt) + '</textarea>' : '') +
+      '<div style="margin-top:8px;"><button type="button" class="btn small" id="printWoBtn">📄 Print Work Order</button></div>' +
+    '</div>';
+  }
   function apContactHtml(c){
     var ap = c.pm.apContact;
     var co = findCompanyByName(c.projectCreated.winningContractor);
@@ -2960,6 +3059,14 @@
         saveCards();
         renderDetail();
       });
+    }
+    var togScope = host.querySelector("#toggleScopeBtn");
+    if(togScope){
+      togScope.addEventListener("click", function(){ scopeOpen = !scopeOpen; renderDetail(); });
+    }
+    var pwo = host.querySelector("#printWoBtn");
+    if(pwo){
+      pwo.addEventListener("click", function(){ showWorkOrder(workOrderFromCard(c)); });
     }
     // Library company expand/hide inside the card
     var togLib = host.querySelector("#toggleWinCoBtn");
