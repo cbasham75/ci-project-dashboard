@@ -386,7 +386,10 @@
         <span class="mark">🗂️ CI Project Bashboard</span>
         <span class="tag">Opportunity → Estimate → Project → Invoice</span>
       </div>
-      <button class="btn primary" id="newCardBtn" style="align-self:flex-start;">+ New Opportunity</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn primary" id="newCardBtn">+ New Opportunity</button>
+        <button class="btn primary" id="newServiceJobBtn">+ Service Job</button>
+      </div>
     </div>
     <div class="header-search">
       <input type="text" id="searchInput" placeholder="🔎 Search name, customer, or #…">
@@ -412,6 +415,7 @@
   <div class="topbar-row2">
     <a class="btn ghost small" href="https://app.smartsheet.com/sheets/JFJHGJr5gpGFfj99X4v82WcWXV2jhgqWM379mfM1?view=calendar" target="_blank" rel="noopener">📆 Team Calendar</a>
     <button class="btn ghost small" id="calendarBtn">📅 Estimator Calendar</button>
+    <button class="btn ghost small" id="serviceCalBtn">🛠️ Service Calendar</button>
     <button class="btn ghost small" id="archiveBtn">🗄️ On Hold / Lost / Archive</button>
     <button class="btn ghost small" id="reportsBtn">📊 Reports</button>
     <button class="btn ghost small" id="exportBtn">Export JSON</button>
@@ -426,6 +430,7 @@
 <div class="calendar" id="archiveView" style="display:none;"></div>
 <div class="calendar" id="reportsView" style="display:none;"></div>
 <div class="calendar" id="libraryView" style="display:none;"></div>
+<div class="calendar" id="serviceCalView" style="display:none;"></div>
 
 <footer class="app-foot" id="appFooter" style="display:none;">
   MVP — data lives in this browser only (localStorage). Use Export JSON to back up or hand off to a database/GitHub build.
@@ -488,6 +493,11 @@
       <button class="btn primary" id="saveNewCardBtn">Create card</button>
     </div>
   </div>
+</div>
+
+<!-- Service Job Modal -->
+<div class="overlay" id="serviceOverlay">
+  <div class="modal" id="serviceModal"></div>
 </div>
 
 <!-- Change Password Modal -->
@@ -937,6 +947,7 @@
   function renderBoard(){
     var board = document.getElementById("board");
     board.innerHTML = "";
+    renderServiceColumn(board);
     COLUMNS.forEach(function(col){
       var colCards = cards.filter(function(c){ return c.status === col.key && !isArchived(c) && matchesSearch(c); });
       var colTotal = colCards.reduce(function(s,c){ return s + tileValue(c); }, 0);
@@ -983,6 +994,303 @@
   window.addEventListener("resize", syncTopbarHeight);
   setTimeout(syncTopbarHeight, 0);
   setInterval(syncTopbarHeight, 1500);
+
+  /* ---------------- Service Jobs ---------------- */
+  var serviceJobs = [];
+  var sjDraft = null;
+  var sjCalOffset = 0;
+
+  function blankServiceJob(){
+    return {
+      id:"", jobName:"", customer:"", address:"", assignedTo:"", salesperson:"",
+      divisions:{scs:false, security:false, av:false, demo:false},
+      description:"", serviceDate:"", serviceTime:"", amount:0,
+      contacts:[], parking:"", workHours:"", accessMethod:"", additionalInfo:"",
+      permitRequired:false, permitNumber:"", buildingPermitNumber:"", submittalsRequired:false,
+      links:[],
+      completion:{complete:false, dateCompleted:"", inspectionPassed:false, testResults:false, asBuilts:false, invoiced:false, invoiceNumber:""},
+      createdAt:"", createdBy:""
+    };
+  }
+  function normalizeServiceJob(j){
+    var b = blankServiceJob();
+    Object.keys(b).forEach(function(k){ if(j[k] === undefined || j[k] === null) j[k] = b[k]; });
+    j.divisions = Object.assign({}, b.divisions, j.divisions);
+    j.completion = Object.assign({}, b.completion, j.completion);
+    if(!Array.isArray(j.contacts)) j.contacts = [];
+    if(!Array.isArray(j.links)) j.links = [];
+    return j;
+  }
+  async function loadServiceJobsRemote(){
+    if(!supabaseClient) return;
+    var res = await supabaseClient.from("service_jobs").select("data").order("id");
+    if(res.error) throw res.error;
+    serviceJobs = res.data.map(function(r){ return normalizeServiceJob(r.data); });
+  }
+  function nextServiceJobId(){
+    var yy = String(new Date().getFullYear()).slice(2);
+    var re = new RegExp("^SJ-" + yy + "-(\\d+)$");
+    var max = 0;
+    serviceJobs.forEach(function(j){
+      var m = re.exec(j.id || ""); if(m) max = Math.max(max, Number(m[1]));
+    });
+    return "SJ-" + yy + "-" + String(max + 1).padStart(4, "0");
+  }
+  function matchesServiceSearch(j){
+    if(!searchQuery) return true;
+    var q = searchQuery.toLowerCase();
+    return (j.jobName||"").toLowerCase().indexOf(q) !== -1 || (j.customer||"").toLowerCase().indexOf(q) !== -1 ||
+      (j.address||"").toLowerCase().indexOf(q) !== -1 || (j.id||"").toLowerCase().indexOf(q) !== -1;
+  }
+
+  function renderServiceColumn(board){
+    var list = serviceJobs.filter(matchesServiceSearch).sort(function(a,b){
+      return (a.completion.complete === b.completion.complete) ? (a.serviceDate||"9999").localeCompare(b.serviceDate||"9999") : (a.completion.complete ? 1 : -1);
+    });
+    var total = list.reduce(function(sum,j){ return sum + (Number(j.amount)||0); }, 0);
+    var colEl = document.createElement("div");
+    colEl.className = "column";
+    colEl.style.setProperty("--stage-color", "var(--teal, var(--slate))");
+    colEl.innerHTML =
+      '<div class="column-head">' +
+        '<div class="title"><span>Service Jobs</span><span class="count">' + list.length + '</span></div>' +
+        '<div class="total">' + money(total) + ' total</div>' +
+      '</div><div class="column-body"></div>';
+    var body = colEl.querySelector(".column-body");
+    list.forEach(function(j){
+      var tags = [];
+      if(j.divisions.scs) tags.push("SCS");
+      if(j.divisions.security) tags.push("SEC");
+      if(j.divisions.av) tags.push("AV");
+      if(j.divisions.demo) tags.push("DEMO");
+      var el = document.createElement("div");
+      el.className = "card";
+      el.style.setProperty("--stage-color", j.completion.complete ? "var(--green)" : "var(--amber)");
+      el.style.cursor = "pointer";
+      el.innerHTML =
+        '<div class="pn"><span>' + esc(j.id) + '</span><span class="divisions">' + tags.map(function(t){ return '<span>' + t + '</span>'; }).join("") + '</span></div>' +
+        '<div class="name">' + esc(j.jobName || "Untitled") + '</div>' +
+        '<div class="sub">' + esc(j.customer || "—") + '</div>' +
+        (j.completion.complete ? '<div style="margin:4px 0;"><span class="badge">✓ Complete</span>' + (j.completion.invoiced ? ' <span class="badge">Invoiced</span>' : '') + '</div>' : '') +
+        '<div class="val-row" style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;">' +
+          '<span class="val" style="font-family:\'IBM Plex Mono\',monospace;font-weight:700;">' + money(Number(j.amount)||0) + '</span>' +
+          (j.serviceDate ? '<span class="due">Service ' + esc(j.serviceDate) + (j.serviceTime ? " " + esc(j.serviceTime) : "") + '</span>' : '') +
+        '</div>';
+      el.addEventListener("click", function(){ openServiceJob(j.id); });
+      body.appendChild(el);
+    });
+    board.appendChild(colEl);
+  }
+
+  function sjContactsHtml(){
+    if(!sjDraft.contacts.length) return '<div class="note-empty">No contacts added yet.</div>';
+    return sjDraft.contacts.map(function(c, i){
+      return '<div class="subcard" data-row-index="' + i + '" style="padding:8px 10px;"><div class="inline-row">' +
+        '<input type="text" class="compact-input" style="flex:1;" data-sjrow="contacts" data-field="name" value="' + esc(c.name) + '" placeholder="Name, phone, email">' +
+        '<button type="button" class="miniremove" data-sj-remove="contacts" data-i="' + i + '">Remove</button></div></div>';
+    }).join("");
+  }
+  function sjLinksHtml(){
+    if(!sjDraft.links.length) return '<div class="note-empty">No links added yet.</div>';
+    return sjDraft.links.map(function(l, i){
+      var hasUrl = !!(l.url && l.url.trim());
+      var label = esc(l.title || "Open") + " ↗";
+      return '<div class="subcard" data-row-index="' + i + '" style="padding:8px 10px;"><div class="inline-row">' +
+        '<input type="text" class="compact-input" style="flex:1;" data-sjrow="links" data-field="title" value="' + esc(l.title) + '" placeholder="Link title">' +
+        '<input type="url" class="compact-input" style="flex:2;" data-sjrow="links" data-field="url" value="' + esc(l.url) + '" placeholder="https://…">' +
+        (hasUrl ? '<a class="btn small" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + label + '</a>' : '<button type="button" class="btn small" disabled>' + label + '</button>') +
+        '<button type="button" class="miniremove" data-sj-remove="links" data-i="' + i + '">Remove</button></div></div>';
+    }).join("");
+  }
+  function sjCompanySelect(selected){
+    var opts = '<option value=""' + (!selected?" selected":"") + '>— select company —</option>';
+    libraryCompanies.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(c){
+      opts += '<option value="' + esc(c.name) + '"' + (c.name===selected?" selected":"") + '>' + esc(c.name) + '</option>';
+    });
+    if(selected && !findCompanyByName(selected)) opts += '<option value="' + esc(selected) + '" selected>' + esc(selected) + ' (not in Library)</option>';
+    return '<select data-sj="customer">' + opts + '</select>';
+  }
+
+  function openServiceJob(id){
+    var existing = id ? serviceJobs.find(function(j){ return j.id === id; }) : null;
+    sjDraft = existing ? normalizeServiceJob(JSON.parse(JSON.stringify(existing))) : blankServiceJob();
+    renderServiceModal();
+    openOverlay("serviceOverlay");
+  }
+
+  function renderServiceModal(){
+    var j = sjDraft, cp = j.completion;
+    var isNew = !j.id;
+    function chk(label, path, val){ return '<label class="checkline"><input type="checkbox" data-sj="' + path + '" ' + (val?"checked":"") + '> ' + label + '</label>'; }
+    var modal = document.getElementById("serviceModal");
+    modal.innerHTML =
+      '<div class="modal-head"><div><h2>' + (isNew ? "New Service Job" : esc(j.id) + " — " + esc(j.jobName || "Service Job")) + '</h2>' +
+        '<div class="sub">' + (isNew ? "A service job number (SJ-YY-NNNN) is assigned automatically on save" : "Service job") + '</div></div>' +
+        '<button class="close-x" id="sjCloseX">✕</button></div>' +
+      '<div class="modal-body">' +
+        '<p class="section-title">Overview</p>' +
+        '<div class="field"><label>Job name *</label><input type="text" data-sj="jobName" value="' + esc(j.jobName) + '"></div>' +
+        '<div class="row2">' +
+          '<div class="field"><label>Customer (from Library)</label>' + sjCompanySelect(j.customer) + '</div>' +
+          '<div class="field"><label>Address</label><input type="text" data-sj="address" value="' + esc(j.address) + '"></div>' +
+        '</div>' +
+        '<div class="field"><label>Divisions</label><div class="checks">' +
+          chk("SCS","divisions.scs",j.divisions.scs) + chk("Security","divisions.security",j.divisions.security) + chk("AV","divisions.av",j.divisions.av) + chk("Demo","divisions.demo",j.divisions.demo) +
+        '</div></div>' +
+        '<div class="field"><label>Work requested / scope</label><textarea data-sj="description">' + esc(j.description) + '</textarea></div>' +
+        '<div class="row2">' +
+          '<div class="field"><label>Service date</label><input type="date" data-sj="serviceDate" value="' + esc(j.serviceDate) + '"></div>' +
+          '<div class="field"><label>Service time</label><select data-sj="serviceTime">' + timeOptionsHtml(j.serviceTime) + '</select></div>' +
+        '</div>' +
+        '<div class="row2">' +
+          '<div class="field"><label>Salesperson</label><select data-sj="salesperson">' + teamMemberOptionsHtml(j.salesperson) + '</select></div>' +
+          '<div class="field"><label>Assigned to (tech / PM)</label><select data-sj="assignedTo">' + teamMemberOptionsHtml(j.assignedTo) + '</select></div>' +
+        '</div>' +
+        '<div class="field"><label>Service amount</label><input type="text" class="money-input" data-sj="amount" data-money="1" value="' + money(Number(j.amount)||0) + '"></div>' +
+
+        '<p class="section-title" style="margin-top:18px;">Project setup</p>' +
+        '<div class="field"><label>Site contacts</label><div id="sjContacts">' + sjContactsHtml() + '</div><button type="button" class="add-row-btn" id="sjAddContact">+ Add contact</button></div>' +
+        '<div class="field"><label>Parking</label><input type="text" data-sj="parking" value="' + esc(j.parking) + '"></div>' +
+        '<div class="field"><label>Work hours</label><input type="text" data-sj="workHours" value="' + esc(j.workHours) + '"></div>' +
+        '<div class="field"><label>Access method</label><input type="text" data-sj="accessMethod" value="' + esc(j.accessMethod) + '"></div>' +
+        '<div class="field"><label>Additional information</label><textarea data-sj="additionalInfo">' + esc(j.additionalInfo) + '</textarea></div>' +
+        '<div class="permit-row">' +
+          '<div class="field permit-checks">' + chk("Permit required","permitRequired",j.permitRequired) + '</div>' +
+          '<div class="field"><label>CI Permit Number</label><input type="text" data-sj="permitNumber" value="' + esc(j.permitNumber) + '"></div>' +
+          '<div class="field"><label>Building Permit Number</label><input type="text" data-sj="buildingPermitNumber" value="' + esc(j.buildingPermitNumber) + '"></div>' +
+        '</div>' +
+        '<div class="field" style="margin-top:6px;">' + chk("Submittals required","submittalsRequired",j.submittalsRequired) + '</div>' +
+        '<div class="field"><label>Links</label><div id="sjLinks">' + sjLinksHtml() + '</div><button type="button" class="add-row-btn" id="sjAddLink">+ Add link</button></div>' +
+
+        '<p class="section-title" style="margin-top:18px;">Completion</p>' +
+        '<div class="field">' + chk("Job complete","completion.complete",cp.complete) + '</div>' +
+        '<div class="field"><label>Date completed</label><input type="date" data-sj="completion.dateCompleted" value="' + esc(cp.dateCompleted) + '"></div>' +
+        '<div class="checks" style="margin-bottom:13px;">' + chk("Inspection passed","completion.inspectionPassed",cp.inspectionPassed) + chk("Test results","completion.testResults",cp.testResults) + chk("As-builts","completion.asBuilts",cp.asBuilts) + '</div>' +
+        '<div class="row2">' +
+          '<div class="field">' + chk("Invoiced","completion.invoiced",cp.invoiced) + '</div>' +
+          '<div class="field"><label>Invoice number</label><input type="text" data-sj="completion.invoiceNumber" value="' + esc(cp.invoiceNumber) + '"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="modal-foot">' +
+        (isNew ? '' : '<button class="btn ghost" id="sjDeleteBtn" style="color:var(--red);margin-right:auto;">Delete</button>') +
+        '<button class="btn ghost" id="sjCancelBtn">Cancel</button>' +
+        '<button class="btn primary" id="sjSaveBtn">💾 ' + (isNew ? "Create service job" : "Save") + '</button>' +
+      '</div>';
+
+    modal.querySelectorAll("[data-sj]").forEach(function(el){
+      var evt = (el.tagName === "SELECT" || el.type === "checkbox" || el.type === "date") ? "change" : "input";
+      el.addEventListener(evt, function(){
+        var val = el.type === "checkbox" ? el.checked : (el.dataset.money ? parseMoney(el.value) : el.value);
+        setPath(sjDraft, el.dataset.sj, val);
+        if(el.dataset.sj === "completion.complete" && val && !sjDraft.completion.dateCompleted){
+          sjDraft.completion.dateCompleted = formatDateISO(new Date());
+          renderServiceModal();
+        }
+      });
+      if(el.dataset.money){
+        el.addEventListener("blur", function(){ el.value = money(Number(sjDraft.amount)||0); });
+      }
+    });
+    function bindRows(boxId, key, rerender){
+      modal.querySelectorAll("#" + boxId + " [data-sjrow]").forEach(function(el){
+        el.addEventListener("input", function(){
+          var i = Number(el.closest("[data-row-index]").dataset.rowIndex);
+          sjDraft[key][i][el.dataset.field] = el.value;
+        });
+        if(key === "links") el.addEventListener("change", function(){ renderServiceModal(); });
+      });
+    }
+    bindRows("sjContacts","contacts");
+    bindRows("sjLinks","links");
+    modal.querySelectorAll("[data-sj-remove]").forEach(function(el){
+      el.addEventListener("click", function(){
+        sjDraft[el.dataset.sjRemove].splice(Number(el.dataset.i), 1);
+        renderServiceModal();
+      });
+    });
+    modal.querySelector("#sjAddContact").addEventListener("click", function(){ sjDraft.contacts.push({name:""}); renderServiceModal(); });
+    modal.querySelector("#sjAddLink").addEventListener("click", function(){ sjDraft.links.push({title:"", url:""}); renderServiceModal(); });
+    modal.querySelector("#sjCloseX").addEventListener("click", function(){ closeOverlay("serviceOverlay"); });
+    modal.querySelector("#sjCancelBtn").addEventListener("click", function(){ closeOverlay("serviceOverlay"); });
+    modal.querySelector("#sjSaveBtn").addEventListener("click", saveServiceJob);
+    var del = modal.querySelector("#sjDeleteBtn");
+    if(del) del.addEventListener("click", function(){
+      if(!confirm("Delete " + sjDraft.id + " — " + (sjDraft.jobName || "this service job") + "? This can't be undone.")) return;
+      var id = sjDraft.id;
+      (supabaseClient ? supabaseClient.from("service_jobs").delete().eq("id", id) : Promise.resolve()).then(function(res){
+        if(res && res.error){ toast("Couldn't delete — " + res.error.message); return; }
+        serviceJobs = serviceJobs.filter(function(x){ return x.id !== id; });
+        closeOverlay("serviceOverlay");
+        renderBoard();
+        if(document.getElementById("serviceCalView").style.display !== "none") renderServiceCalendar();
+        toast("Deleted " + id);
+      });
+    });
+  }
+
+  function saveServiceJob(){
+    if(!(sjDraft.jobName||"").trim()){ toast("Job name is required"); return; }
+    var job = sjDraft;
+    if(!job.id){
+      job.id = nextServiceJobId();
+      job.createdAt = new Date().toISOString();
+      job.createdBy = getUser();
+    }
+    var p = supabaseClient
+      ? supabaseClient.from("service_jobs").upsert({id:job.id, data:job, updated_at:new Date().toISOString()})
+      : Promise.resolve({});
+    p.then(function(res){
+      if(res && res.error){ toast("Couldn't save — " + res.error.message); return; }
+      var i = serviceJobs.findIndex(function(x){ return x.id === job.id; });
+      if(i === -1) serviceJobs.push(job); else serviceJobs[i] = job;
+      closeOverlay("serviceOverlay");
+      renderBoard();
+      if(document.getElementById("serviceCalView").style.display !== "none") renderServiceCalendar();
+      toast("Saved " + job.id + " — " + job.jobName);
+    });
+  }
+
+  function renderServiceCalendar(){
+    var cal = document.getElementById("serviceCalView");
+    var now = new Date();
+    var base = new Date(now.getFullYear(), now.getMonth() + sjCalOffset, 1);
+    var year = base.getFullYear(), month = base.getMonth();
+    var monthLabel = base.toLocaleDateString(undefined, {month:"long", year:"numeric"});
+    var firstWeekday = new Date(year, month, 1).getDay();
+    var daysInMonth = new Date(year, month+1, 0).getDate();
+    var todayStr = formatDateISO(now);
+    var cellsHtml = "";
+    for(var i=0; i<firstWeekday; i++){ cellsHtml += '<div class="cal-day empty"></div>'; }
+    for(var d=1; d<=daysInMonth; d++){
+      var dateStr = formatDateISO(new Date(year, month, d));
+      var bubbles = serviceJobs.filter(function(j){ return j.serviceDate === dateStr; }).sort(function(a,b){ return (a.serviceTime||"").localeCompare(b.serviceTime||""); }).map(function(j){
+        var label = (j.serviceTime ? esc(j.serviceTime) + " " : "") + esc(j.jobName || "Untitled") + " / " + esc(j.id) + (j.assignedTo ? " · " + esc(j.assignedTo) : "");
+        return '<button type="button" class="cal-bubble ' + (j.completion.complete ? "done" : "pending") + '" data-open-sj="' + esc(j.id) + '" title="' + label + '">' + label + '</button>';
+      }).join("");
+      cellsHtml += '<div class="cal-day' + (dateStr === todayStr ? " today" : "") + '"><div class="cal-daynum">' + d + '</div>' + bubbles + '</div>';
+    }
+    cal.innerHTML =
+      '<div class="cal-head">' +
+        '<button class="btn ghost" id="sjcBackBtn">← Back to Card view</button>' +
+        '<div class="cal-nav">' +
+          '<button class="btn small" id="sjcPrevBtn">‹</button>' +
+          '<span class="cal-month-label">🛠️ Service Calendar — ' + monthLabel + '</span>' +
+          '<button class="btn small" id="sjcNextBtn">›</button>' +
+          '<button class="btn" id="sjcRefreshBtn" title="Refresh" style="font-size:18px;padding:8px 16px;">🔄</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cal-weekdays">' + ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(function(w){ return '<div>' + w + '</div>'; }).join("") + '</div>' +
+      '<div class="cal-grid">' + cellsHtml + '</div>';
+    cal.querySelector("#sjcBackBtn").addEventListener("click", showBoard);
+    cal.querySelector("#sjcPrevBtn").addEventListener("click", function(){ sjCalOffset--; renderServiceCalendar(); });
+    cal.querySelector("#sjcNextBtn").addEventListener("click", function(){ sjCalOffset++; renderServiceCalendar(); });
+    cal.querySelector("#sjcRefreshBtn").addEventListener("click", function(){
+      loadServiceJobsRemote().then(function(){ renderServiceCalendar(); toast("Calendar refreshed"); }).catch(function(){ renderServiceCalendar(); });
+    });
+    cal.querySelectorAll("[data-open-sj]").forEach(function(btn){
+      btn.addEventListener("click", function(){ openServiceJob(btn.dataset.openSj); });
+    });
+  }
 
   /* ---------------- Library (companies) ---------------- */
   var libraryCompanies = [];
@@ -1143,6 +1451,7 @@
   function showCalendar(){
     document.getElementById("board").style.display = "none";
     document.getElementById("libraryView").style.display = "none";
+    document.getElementById("serviceCalView").style.display = "none";
     document.getElementById("archiveView").style.display = "none";
     document.getElementById("reportsView").style.display = "none";
     document.getElementById("calendarView").style.display = "block";
@@ -1151,6 +1460,7 @@
   function showArchive(){
     document.getElementById("board").style.display = "none";
     document.getElementById("libraryView").style.display = "none";
+    document.getElementById("serviceCalView").style.display = "none";
     document.getElementById("calendarView").style.display = "none";
     document.getElementById("reportsView").style.display = "none";
     document.getElementById("archiveView").style.display = "block";
@@ -1161,12 +1471,23 @@
     document.getElementById("calendarView").style.display = "none";
     document.getElementById("archiveView").style.display = "none";
     document.getElementById("reportsView").style.display = "none";
+    document.getElementById("serviceCalView").style.display = "none";
     document.getElementById("libraryView").style.display = "block";
     loadLibraryRemote().then(renderLibrary).catch(function(){ renderLibrary(); });
+  }
+  function showServiceCalendar(){
+    document.getElementById("board").style.display = "none";
+    document.getElementById("calendarView").style.display = "none";
+    document.getElementById("archiveView").style.display = "none";
+    document.getElementById("reportsView").style.display = "none";
+    document.getElementById("libraryView").style.display = "none";
+    document.getElementById("serviceCalView").style.display = "block";
+    renderServiceCalendar();
   }
   function showReports(){
     document.getElementById("board").style.display = "none";
     document.getElementById("libraryView").style.display = "none";
+    document.getElementById("serviceCalView").style.display = "none";
     document.getElementById("calendarView").style.display = "none";
     document.getElementById("archiveView").style.display = "none";
     document.getElementById("reportsView").style.display = "block";
@@ -1174,6 +1495,7 @@
   }
   function showBoard(){
     document.getElementById("libraryView").style.display = "none";
+    document.getElementById("serviceCalView").style.display = "none";
     document.getElementById("calendarView").style.display = "none";
     document.getElementById("archiveView").style.display = "none";
     document.getElementById("reportsView").style.display = "none";
@@ -2826,6 +3148,8 @@
   document.getElementById("archiveBtn").addEventListener("click", showArchive);
   document.getElementById("reportsBtn").addEventListener("click", showReports);
   document.getElementById("libraryBtn").addEventListener("click", showLibrary);
+  document.getElementById("serviceCalBtn").addEventListener("click", showServiceCalendar);
+  document.getElementById("newServiceJobBtn").addEventListener("click", function(){ openServiceJob(""); });
 
   document.getElementById("exportBtn").addEventListener("click", function(){
     var blob = new Blob([JSON.stringify({cards:cards, alerts:alerts}, null, 2)], {type:"application/json"});
@@ -2881,6 +3205,7 @@
     document.getElementById("appFooter").style.display = "none";
     document.getElementById("board").style.display = "none";
     document.getElementById("libraryView").style.display = "none";
+    document.getElementById("serviceCalView").style.display = "none";
     document.getElementById("calendarView").style.display = "none";
     document.getElementById("archiveView").style.display = "none";
     document.getElementById("loginPassword").value = "";
@@ -3060,6 +3385,7 @@
     }
 
     try { await loadLibraryRemote(); } catch(e){ console.error("Library load failed", e); }
+    try { await loadServiceJobsRemote(); } catch(e){ console.error("Service jobs load failed", e); }
     cards = loadedCards;
     alerts = loadedAlerts;
     cards.forEach(migrateCard);
@@ -3086,6 +3412,10 @@
 
       if(!activeDetailId){
         try { await loadLibraryRemote(); } catch(e){}
+        if(!document.getElementById("serviceOverlay").classList.contains("open")){
+          try { await loadServiceJobsRemote(); } catch(e){}
+          if(document.getElementById("serviceCalView").style.display !== "none") renderServiceCalendar();
+        }
         cards = await loadCardsRemote();
         cards.forEach(migrateCard);
         if(document.getElementById("board").style.display !== "none") renderBoard();
