@@ -155,6 +155,43 @@
   #woSheet{position:fixed;inset:0;z-index:200;background:#e5e5e5;overflow:auto;padding:0 0 40px;}
   #woSheet .wo-bar{position:sticky;top:0;background:#222;padding:10px 16px;display:flex;gap:10px;justify-content:center;z-index:1;}
   #woSheet .wo-page{background:#fff;color:#111;width:8.5in;max-width:100%;box-sizing:border-box;margin:16px auto;padding:.4in .5in;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.3;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+  .wo-page.ho{font-size:11px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .ho-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
+  .ho-co{font-size:22px;font-weight:700;color:#1F4E5F;letter-spacing:.3px;}
+  .ho-tag{font-size:7.5px;font-weight:700;color:#E8602C;letter-spacing:.4px;margin-top:2px;}
+  .ho-int{font-size:8px;font-weight:700;color:#777;margin-top:4px;}
+  .ho-right{text-align:right;line-height:1.5;}
+  .ho-title{font-size:17px;font-weight:700;color:#E8602C;}
+  .ho-sub{font-size:9px;font-style:italic;color:#555;margin-bottom:4px;}
+  .ho-right b,.ho-kv b{color:#1F4E5F;}
+  .ho-box{display:flex;background:#f2f2f2;border:1px solid #ccc;margin-bottom:14px;}
+  .ho-col{flex:1;padding:8px 10px;}
+  .ho-col + .ho-col{border-left:1px solid #ccc;}
+  .ho-h{font-size:10px;font-weight:700;color:#E8602C;margin-bottom:5px;}
+  .ho-kv{margin-bottom:3px;}
+  .ho-bar{background:#1F4E5F;color:#fff;font-weight:700;font-size:10.5px;padding:4px 8px;margin:14px 0 6px;letter-spacing:.3px;}
+  .ho-tbl{table-layout:fixed;}
+  .wo-page .ho-tbl th{background:#1F4E5F;color:#fff;font-size:9.5px;width:auto;white-space:normal;text-align:left;}
+  .ho-tbl td{font-size:11px;padding:6px 7px;color:#333;}
+  .ho-sys{margin:4px 0;font-size:11.5px;}
+  .ho-sys b{color:#1F4E5F;}
+  .ho-sys span{font-style:italic;}
+  .ho-scope{white-space:pre-wrap;margin:6px 0;font-size:11.5px;line-height:1.45;border-top:1px solid #ccc;padding-top:6px;}
+  .ho-ms{margin:3px 0;}
+  .ho-ms b{color:#1F4E5F;}
+  .ho-text{white-space:pre-wrap;}
+  .ho-grey{background:#f2f2f2;border:1px solid #ccc;padding:8px 10px;line-height:1.5;}
+  .ho-risk{margin:4px 0;}
+  .ho-risk span{color:#E8602C;}
+  .ho-signs{display:flex;gap:16px;margin:26px 0 10px;}
+  .ho-signs > div{flex:1;border-top:2px solid #1F4E5F;padding-top:3px;font-size:10px;}
+  .ho-signs b{display:block;color:#1F4E5F;} .ho-signs small{display:block;color:#777;font-size:9px;} .ho-signs u{display:block;text-decoration:none;color:#1F4E5F;font-weight:700;margin-top:8px;font-size:9px;}
+  .ho-owner{background:#e8eef0;border:1px solid #ccc;padding:8px 10px;margin-top:14px;}
+  .wo-info{font-size:13px;}
+  .wo-info table{table-layout:fixed;}
+  .wo-info th{width:150px;font-size:12px;white-space:normal;}
+  .wo-info td{white-space:pre-line;}
+  .wo-info .wo-scope{white-space:pre-wrap;font-size:14px;line-height:1.5;border:1px solid #888;padding:10px 12px;}
   .wo-page h1{font-size:22px;margin:0;letter-spacing:.5px;}
   .wo-page h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid #111;padding-bottom:2px;margin:10px 0 5px;}
   .wo-page table{width:100%;border-collapse:collapse;}
@@ -165,7 +202,9 @@
   .wo-page .wo-sig{display:flex;gap:24px;margin-top:20px;}
   .wo-page .wo-sig div{flex:1;border-top:1px solid #111;padding-top:3px;font-size:11px;}
   @media print{
+    html,body.wo-printing{background:#fff !important;}
     body.wo-printing > *:not(#woSheet){display:none !important;}
+    .wo-signoff{break-inside:avoid;page-break-inside:avoid;}
     body.wo-printing #woSheet{position:static;background:#fff;padding:0;overflow:visible;}
     #woSheet .wo-bar{display:none !important;}
     #woSheet .wo-page{box-shadow:none;margin:0;padding:0;width:auto;}
@@ -655,6 +694,36 @@
 
   // Backfills fields for cards saved under earlier versions of this app so the UI never
   // breaks against older localStorage data.
+  var SYSTEM_DEFS = [
+    {key:"scs",    label:"Structured Cabling"},
+    {key:"lv",     label:"Low Voltage"},
+    {key:"av",     label:"Audio / Visual"},
+    {key:"access", label:"Access Control / Security"},
+    {key:"other",  label:"Other"}
+  ];
+  var MILESTONE_DEFS = [
+    {key:"onSiteStart", label:"On-Site Start"}, {key:"aboveCeiling", label:"Above Ceiling Inspection"},
+    {key:"closingCeilings", label:"Closing Ceilings"}, {key:"furnitureInstall", label:"Furniture Install"},
+    {key:"termination", label:"Termination"}
+  ];
+  // Hand-off / work order fields. Idempotent so it's safe to call anywhere.
+  function ensureHandoff(c){
+    if(!c.projectCreated) c.projectCreated = {};
+    var pc = c.projectCreated;
+    ["woNumber","handoffDate","buildingArea","gcPm","clientOwner","clientRep","coordinator","preconName","fieldLead","materialsNotes","riskItems"].forEach(function(k){
+      if(typeof pc[k] !== "string") pc[k] = "";
+    });
+    if(!pc.systems || typeof pc.systems !== "object"){
+      var d = c.divisions || {};
+      pc.systems = {scs:{on:!!d.scs,desc:""}, lv:{on:false,desc:""}, av:{on:!!d.av,desc:""}, access:{on:!!d.security,desc:""}, other:{on:false,desc:""}};
+    }
+    SYSTEM_DEFS.forEach(function(sd){
+      if(!pc.systems[sd.key] || typeof pc.systems[sd.key] !== "object") pc.systems[sd.key] = {on:false, desc:""};
+    });
+    if(!pc.milestones || typeof pc.milestones !== "object") pc.milestones = {};
+    MILESTONE_DEFS.forEach(function(m){ if(typeof pc.milestones[m.key] !== "string") pc.milestones[m.key] = ""; });
+  }
+
   function migrateCard(c){
     if(!Array.isArray(c.directCustomers)){
       c.directCustomers = c.directCustomerName ? [{name:c.directCustomerName}] : [];
@@ -669,6 +738,7 @@
     }
     if(typeof pc.additionalInfo !== "string") pc.additionalInfo = "";
     if(typeof pc.scopeOfWork !== "string") pc.scopeOfWork = "";
+    ensureHandoff(c);
     if(typeof pc.parking !== "string") pc.parking = "";
     if(typeof pc.workHours !== "string") pc.workHours = "";
     if(!c.pm) c.pm = {percentComplete:0, notes:[], billing:[]};
@@ -1019,41 +1089,104 @@
 
   /* ---------------- Work orders (printable) ---------------- */
   function workOrderFromCard(c){
+    ensureHandoff(c);
     var pc = c.projectCreated || {};
     var d = c.divisions || {};
+    var vers = c.estimateVersions || [];
+    var lastEstimator = vers.length ? (vers[vers.length-1].estimator || "") : "";
+    var siteItems = [];
+    if(pc.workHours) siteItems.push("Working hours: " + pc.workHours);
+    if(pc.parking) siteItems.push("Parking: " + pc.parking);
+    if(pc.accessMethod) siteItems.push("Access: " + pc.accessMethod);
+    if(pc.additionalInfo) siteItems.push(pc.additionalInfo);
     return {
-      type:"Project", number:c.id, title:c.projectName || "",
+      type:"Project", showMaterials:false, alwaysSetup:false, infoOnly:true, infoLabel:"Additional information", number:c.id, title:c.projectName || "",
+      woNumber:pc.woNumber, handoffDate:pc.handoffDate, buildingArea:pc.buildingArea,
       customer: pc.winningContractor || c.projectCustomer || "",
-      contractors:(c.directCustomers||[]).map(function(x){ return x.name; }).filter(Boolean).join(", "),
+      gcPm:pc.gcPm, clientOwner:pc.clientOwner || c.projectCustomer || "", clientRep:pc.clientRep,
       address:c.address || "",
-      divisions:[d.scs&&"SCS", d.security&&"Security", d.av&&"AV", d.demo&&"Demo"].filter(Boolean).join(", "),
+      owners:[["Sales", c.salesperson], ["Project Coordinator", pc.coordinator], ["Pre-Con / Estimating", pc.preconName || lastEstimator], ["Project Manager", pc.pmName], ["Field Lead", pc.fieldLead]],
+      systems:SYSTEM_DEFS.map(function(sd){ return {label:sd.label, on:!!pc.systems[sd.key].on, desc:pc.systems[sd.key].desc}; }),
       scope:pc.scopeOfWork || "",
-      dateLabel:"Project manager", dateValue:pc.pmName || "",
-      assigned:pc.pmName || "", salesperson:c.salesperson || "",
+      milestones:MILESTONE_DEFS.map(function(m){ return {label:m.label, value:pc.milestones[m.key]}; }),
+      materials:pc.materialsNotes,
+      siteItems:siteItems,
+      risks:(pc.riskItems || "").split("\n").map(function(x){ return x.trim(); }).filter(Boolean),
       contacts:(pc.contacts||[]).map(function(x){ return x.name; }).filter(Boolean),
-      parking:pc.parking || "", workHours:pc.workHours || "", access:pc.accessMethod || "", info:pc.additionalInfo || "",
-      permitRequired:!!pc.permitRequired, ciPermit:pc.permitNumber || "", bldgPermit:pc.buildingPermitNumber || "", submittals:!!pc.submittalsRequired
+      permitRequired:!!pc.permitRequired, ciPermit:pc.permitNumber || "", bldgPermit:pc.buildingPermitNumber || "", submittals:!!pc.submittalsRequired,
+      pmName:pc.pmName, preconName:pc.preconName || lastEstimator, fieldLead:pc.fieldLead
     };
   }
   function workOrderFromService(j){
     var d = j.divisions || {};
     return {
-      type:"Service Job", number:j.id || "(unsaved)", title:j.jobName || "",
+      type:"Service Job", showMaterials:true, alwaysSetup:false, infoOnly:false, infoLabel:"Site notes", number:j.id || "(unsaved)", title:j.jobName || "",
       customer:j.customer || "", contractors:"", address:j.address || "",
       divisions:[d.scs&&"SCS", d.security&&"Security", d.av&&"AV", d.demo&&"Demo"].filter(Boolean).join(", "),
       scope:j.description || "",
-      dateLabel:"Service date", dateValue:[j.serviceDate, j.serviceTime].filter(Boolean).join(" "),
+      assignedLabel:"Assigned to", dateLabel:"Service date", dateValue:[j.serviceDate, j.serviceTime].filter(Boolean).join(" "),
       assigned:j.assignedTo || "", salesperson:"",
       contacts:(j.contacts||[]).map(function(x){ return x.name; }).filter(Boolean),
       parking:"", workHours:"", access:"", info:j.additionalInfo || "",
       permitRequired:!!j.permitRequired, ciPermit:j.permitNumber || "", bldgPermit:j.buildingPermitNumber || "", submittals:!!j.submittalsRequired
     };
   }
+  // Internal hand-off style work order (information only; no money or labor hours).
+  function infoOnlyWorkOrderHtml(w, permitBits){
+    function bar(t){ return '<div class="ho-bar">' + t + '</div>'; }
+    function kv(label, val){ return val ? '<div class="ho-kv"><b>' + label + '</b> ' + esc(val) + '</div>' : ''; }
+    var permitLine = permitBits.length ? "Permits / submittals: " + permitBits.join(" · ") : "";
+    var siteItems = w.siteItems.slice(); if(permitLine) siteItems.push(permitLine);
+    var milestoneRows = w.milestones.filter(function(m){ return m.value; });
+    var risks = w.risks;
+    var sysAny = w.systems.some(function(x){ return x.on; });
+    return '<div class="wo-bar"><button class="btn primary" id="woPrintBtn">🖨️ Print / Save as PDF</button>' +
+        '<label style="color:#fff;display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="woSignoffToggle"> Include sign-off &amp; owner oversight</label>' +
+        '<button class="btn" id="woCloseBtn">Close</button></div>' +
+      '<div class="wo-page ho">' +
+        '<div class="ho-top">' +
+          '<div><div class="ho-co">CABLING INNOVATIONS</div><div class="ho-tag">STRUCTURED CABLING &nbsp;•&nbsp; LOW VOLTAGE &nbsp;•&nbsp; AV &nbsp;•&nbsp; ACCESS CONTROL</div><div class="ho-int">INTERNAL USE ONLY</div></div>' +
+          '<div class="ho-right"><div class="ho-title">PROJECT WORK ORDER</div><div class="ho-sub">Operations Hand-Off &amp; Oversight</div>' +
+            (w.woNumber ? '<div><b>WO No.</b> ' + esc(w.woNumber) + '</div>' : '') +
+            '<div><b>Project No.</b> ' + esc(w.number) + '</div>' +
+            '<div><b>Hand-Off Date</b> ' + esc(w.handoffDate ? new Date(w.handoffDate + "T00:00").toLocaleDateString() : new Date().toLocaleDateString()) + '</div></div>' +
+        '</div>' +
+        '<div class="ho-box"><div class="ho-col"><div class="ho-h">PROJECT</div>' +
+            kv("Project Name", w.title) + kv("Site Address", w.address) + kv("Building / Area", w.buildingArea) + kv("Prime / GC", w.customer) + kv("GC Project Manager", w.gcPm) +
+          '</div><div class="ho-col"><div class="ho-h">CONTACT</div>' +
+            kv("Client / Owner", w.clientOwner) + kv("Client Representative", w.clientRep) +
+            (w.contacts.length ? '<div class="ho-kv"><b>Site contacts</b><br>' + w.contacts.map(esc).join("<br>") + '</div>' : '') +
+        '</div></div>' +
+        bar("HAND-OFF &amp; OWNERSHIP") +
+        '<table class="ho-tbl"><tr>' + w.owners.map(function(o){ return '<th>' + o[0] + '</th>'; }).join("") + '</tr><tr>' +
+          w.owners.map(function(o){ return '<td>' + (o[1] ? esc(o[1]) : '—') + '</td>'; }).join("") + '</tr></table>' +
+        bar("SCOPE OF WORK BY SYSTEM") +
+        (sysAny ? w.systems.filter(function(x){ return x.on; }).map(function(x){
+          return '<div class="ho-sys">☒ <b>' + esc(x.label) + '</b> &nbsp;<span>' + esc(x.desc) + '</span></div>';
+        }).join("") : '') +
+        (w.scope ? '<div class="ho-scope">' + esc(w.scope) + '</div>' : (sysAny ? '' : '<div class="ho-sys"><em>No scope entered.</em></div>')) +
+        (milestoneRows.length ? bar("SCHEDULE &amp; MILESTONES") + milestoneRows.map(function(m){ return '<div class="ho-ms"><b>' + esc(m.label) + ':</b> ' + esc(m.value) + '</div>'; }).join("") : '') +
+        (w.materials ? bar("MATERIALS &amp; PROCUREMENT") + '<div class="ho-text">' + esc(w.materials) + '</div>' : '') +
+        (siteItems.length ? bar("SITE ACCESS &amp; CRITICAL INFO") + '<div class="ho-grey">' + siteItems.map(function(t,i){ return '<div>' + (i+1) + '. ' + esc(t) + '</div>'; }).join("") + '</div>' : '') +
+        (risks.length ? bar("RISK &amp; WATCH ITEMS") + risks.map(function(r){ return '<div class="ho-risk"><span>☐</span> ' + esc(r) + '</div>'; }).join("") : '') +
+        '<div class="wo-signoff" style="display:none;">' +
+          bar("HAND-OFF SIGN-OFF") +
+          '<div class="ho-signs">' +
+            '<div><i></i><b>Released by, Pre-Con / Estimating</b><small>' + esc(w.preconName || "") + '</small><u>Date ____________</u></div>' +
+            '<div><i></i><b>Accepted by, Project Manager</b><small>' + esc(w.pmName || "") + '</small><u>Date ____________</u></div>' +
+            '<div><i></i><b>Briefed, Field Lead</b><small>' + esc(w.fieldLead || "") + '</small><u>Date ____________</u></div>' +
+          '</div>' +
+          '<div class="ho-owner"><div class="ho-h">OWNER OVERSIGHT</div><div style="font-size:10px;color:#555;">Reviewed at hand-off. Notes and direction below.</div><div style="height:50px;"></div>' +
+            '<div style="border-top:1px solid #bbb;padding-top:6px;font-size:10px;"><b>Approved</b> ☐ &nbsp;&nbsp; <b>Hold</b> ☐ &nbsp;&nbsp; <b>Reviewed by</b> ______________ &nbsp;&nbsp; <b>Date</b> ________</div></div>' +
+        '</div>' +
+      '</div>';
+  }
+
   function showWorkOrder(w){
     // Deliberately excludes money, labor hours, salesperson and other internal info.
     function cell(label, val){ return '<th>' + label + '</th><td>' + (val ? esc(val) : '&nbsp;') + '</td>'; }
     function row(label, val){ return val ? '<tr>' + cell(label, val) + '<th></th><td></td></tr>'.replace('<th></th><td></td>','') : ''; }
-    function full(label, val){ return val ? '<tr><th>' + label + '</th><td colspan="3">' + esc(val) + '</td></tr>' : ''; }
+    function full(label, val){ return (val || w.alwaysSetup) ? '<tr><th>' + label + '</th><td colspan="3">' + (val ? esc(val) : '&nbsp;') + '</td></tr>' : ''; }
     var matRows = "";
     for(var i=0;i<6;i++) matRows += '<tr><td style="height:20px;">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>';
     var permitBits = [];
@@ -1062,7 +1195,7 @@
     if(w.bldgPermit) permitBits.push("Building # " + w.bldgPermit);
     if(w.submittals) permitBits.push("Submittals required");
     var el = document.getElementById("woSheet");
-    el.innerHTML =
+    el.innerHTML = w.infoOnly ? infoOnlyWorkOrderHtml(w, permitBits) :
       '<div class="wo-bar"><button class="btn primary" id="woPrintBtn">🖨️ Print / Save as PDF</button><button class="btn" id="woCloseBtn">Close</button></div>' +
       '<div class="wo-page">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:6px;">' +
@@ -1071,19 +1204,21 @@
         '</div>' +
         '<table style="margin-top:8px;">' +
           '<tr>' + cell("Job / project", w.title) + cell(w.dateLabel, w.dateValue) + '</tr>' +
-          '<tr>' + cell("Customer", w.customer) + cell("Assigned to", w.assigned) + '</tr>' +
+          '<tr>' + cell("Customer", w.customer) + cell(w.assignedLabel, w.assigned) + '</tr>' +
           full("Contractor(s)", w.contractors) +
           '<tr><th>Site address</th><td colspan="3">' + (w.address ? esc(w.address) : '&nbsp;') + '</td></tr>' +
           '<tr><th>Site contact(s)</th><td colspan="3">' + (w.contacts.length ? esc(w.contacts.join("  |  ")) : '&nbsp;') + '</td></tr>' +
-          full("Divisions", w.divisions) + full("Parking", w.parking) + full("Site access hours", w.workHours) + full("Access method", w.access) +
-          full("Permits", permitBits.join(" · ")) + full("Site notes", w.info) +
+          full("Divisions", w.divisions) + full("Parking", w.parking) + full("Work hours", w.workHours) + full("Access method", w.access) +
+          full("Permits", permitBits.join(" · ")) + full(w.infoLabel, w.info) +
         '</table>' +
         '<h2>Scope of work</h2><div class="wo-box" style="min-height:90px;">' + esc(w.scope) + '</div>' +
         '<h2>Completed by technician</h2>' +
         '<table><tr><th>Technician(s)</th><td>&nbsp;</td><th>Date</th><td style="width:110px;">&nbsp;</td><th>Arrive</th><td style="width:70px;">&nbsp;</td><th>Depart</th><td style="width:70px;">&nbsp;</td></tr></table>' +
-        '<div style="font-weight:700;margin:7px 0 2px;">Work performed</div><div class="wo-box" style="min-height:150px;"></div>' +
-        '<div style="font-weight:700;margin:7px 0 2px;">Materials used</div>' +
-        '<table style="table-layout:fixed;"><tr><th style="width:10%;">Qty</th><th style="width:56%;">Description</th><th style="width:34%;">Part # / Location</th></tr>' + matRows + '</table>' +
+        '<div style="font-weight:700;margin:7px 0 2px;">Work performed</div><div class="wo-box" style="min-height:' + (w.showMaterials ? 150 : 230) + 'px;"></div>' +
+        (w.showMaterials ?
+          '<div style="font-weight:700;margin:7px 0 2px;">Materials used</div>' +
+          '<table style="table-layout:fixed;"><tr><th style="width:10%;">Qty</th><th style="width:56%;">Description</th><th style="width:34%;">Part # / Location</th></tr>' + matRows + '</table>'
+          : '<div style="font-weight:700;margin:7px 0 2px;">Notes / issues</div><div class="wo-box" style="min-height:70px;"></div>') +
         '<div style="margin-top:7px;">☐ Work complete &nbsp;&nbsp; ☐ Return visit needed &nbsp;&nbsp; ☐ Additional work / change order needed</div>' +
         '<div class="wo-sig"><div>Customer name (print)</div><div>Customer signature</div><div style="flex:0 0 90px;">Date</div></div>' +
         '<div class="wo-sig" style="margin-top:16px;"><div>Technician name (print)</div><div>Technician signature</div><div style="flex:0 0 90px;">Date</div></div>' +
@@ -1093,6 +1228,10 @@
     function closeWo(){ el.style.display = "none"; document.body.classList.remove("wo-printing"); }
     el.querySelector("#woCloseBtn").addEventListener("click", closeWo);
     el.querySelector("#woPrintBtn").addEventListener("click", function(){ window.print(); });
+    var so = el.querySelector("#woSignoffToggle");
+    if(so) so.addEventListener("change", function(){
+      el.querySelectorAll(".wo-signoff").forEach(function(n){ n.style.display = so.checked ? "block" : "none"; });
+    });
   }
 
   /* ---------------- Service Jobs ---------------- */
@@ -1387,6 +1526,7 @@
   var libOpen = true;
   var winCoOpen = true;
   var scopeOpen = true;
+  var handoffOpen = false;
 
   function blankCompany(){
     return {
@@ -2567,6 +2707,7 @@
       '<div class="field"><label>Access method</label><input type="text" data-path="projectCreated.accessMethod" value="' + esc(pc.accessMethod) + '"></div>' +
       '<div class="field"><label>Additional information</label><textarea data-path="projectCreated.additionalInfo">' + esc(pc.additionalInfo) + '</textarea></div>' +
       scopeBlockHtml(c) +
+      handoffBlockHtml(c) +
 
       '<div class="permit-row">' +
         '<div class="field permit-checks">' +
@@ -2614,6 +2755,40 @@
     }).join("");
   }
 
+  function handoffBlockHtml(c){
+    ensureHandoff(c);
+    var pc = c.projectCreated;
+    function t(label, path, val){ return '<div class="field"><label>' + label + '</label><input type="text" data-path="' + path + '" value="' + esc(val) + '"></div>'; }
+    var body = '';
+    if(handoffOpen){
+      body = '<div class="subcard" style="margin-top:8px;">' +
+        '<p class="section-title">Work order header</p>' +
+        '<div class="row2">' + t("WO number","projectCreated.woNumber",pc.woNumber) +
+          '<div class="field"><label>Hand-off date</label><input type="date" data-path="projectCreated.handoffDate" value="' + esc(pc.handoffDate) + '"></div></div>' +
+        '<div class="row2">' + t("Building / area","projectCreated.buildingArea",pc.buildingArea) + t("GC project manager(s)","projectCreated.gcPm",pc.gcPm) + '</div>' +
+        '<div class="row2">' + t("Client / owner","projectCreated.clientOwner",pc.clientOwner) + t("Client representative","projectCreated.clientRep",pc.clientRep) + '</div>' +
+        '<p class="section-title" style="margin-top:12px;">Hand-off &amp; ownership</p>' +
+        '<div class="row2">' +
+          '<div class="field"><label>Project coordinator</label><select data-path="projectCreated.coordinator">' + teamMemberOptionsHtml(pc.coordinator) + '</select></div>' +
+          '<div class="field"><label>Pre-con / estimating</label><select data-path="projectCreated.preconName">' + teamMemberOptionsHtml(pc.preconName) + '</select></div>' +
+        '</div>' +
+        '<div class="field"><label>Field lead</label><select data-path="projectCreated.fieldLead">' + teamMemberOptionsHtml(pc.fieldLead) + '</select></div>' +
+        '<p class="section-title" style="margin-top:12px;">Scope of work by system</p>' +
+        SYSTEM_DEFS.map(function(sd){
+          var sy = pc.systems[sd.key];
+          return '<div class="inline-row" style="margin-bottom:6px;">' +
+            '<label class="checkline" style="flex:0 0 190px;"><input type="checkbox" data-path="projectCreated.systems.' + sd.key + '.on" ' + (sy.on?"checked":"") + '> ' + sd.label + '</label>' +
+            '<input type="text" class="compact-input" style="flex:1;min-width:160px;" data-path="projectCreated.systems.' + sd.key + '.desc" value="' + esc(sy.desc) + '" placeholder="Quantities, drawing sheets, spec sections…">' +
+          '</div>';
+        }).join("") +
+        '<p class="section-title" style="margin-top:12px;">Schedule &amp; milestones</p>' +
+        '<div class="row2">' + MILESTONE_DEFS.map(function(m){ return t(m.label,"projectCreated.milestones." + m.key,pc.milestones[m.key]); }).join("") + '</div>' +
+        '<div class="field"><label>Materials &amp; procurement</label><textarea data-path="projectCreated.materialsNotes">' + esc(pc.materialsNotes) + '</textarea></div>' +
+        '<div class="field"><label>Risk &amp; watch items (one per line)</label><textarea data-path="projectCreated.riskItems">' + esc(pc.riskItems) + '</textarea></div>' +
+      '</div>';
+    }
+    return '<div class="field"><button type="button" class="add-row-btn" id="toggleHandoffBtn">' + (handoffOpen ? "▼ Hide" : "▶ Show") + ' hand-off / work order info</button>' + body + '</div>';
+  }
   function scopeBlockHtml(c){
     var txt = c.projectCreated.scopeOfWork || "";
     return '<div class="field">' +
@@ -3063,6 +3238,10 @@
     var togScope = host.querySelector("#toggleScopeBtn");
     if(togScope){
       togScope.addEventListener("click", function(){ scopeOpen = !scopeOpen; renderDetail(); });
+    }
+    var togHo = host.querySelector("#toggleHandoffBtn");
+    if(togHo){
+      togHo.addEventListener("click", function(){ handoffOpen = !handoffOpen; renderDetail(); });
     }
     var pwo = host.querySelector("#printWoBtn");
     if(pwo){
