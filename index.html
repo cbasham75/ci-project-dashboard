@@ -153,7 +153,9 @@
   .column-head .total{font-size:11px;color:var(--ink-soft);margin-top:4px;}
   .column-body{padding:10px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;flex:1;}
   .permit-row{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px;align-items:end;}
-  .permit-checks{display:flex;flex-direction:column;gap:8px;justify-content:flex-end;}
+  .permit-row .field.permit-checks{margin-bottom:13px;min-height:38px;}
+  .permit-checks{display:flex;align-items:center;min-height:38px;}
+  .permit-checks .checkline{white-space:nowrap;}
   .co-row{display:flex;gap:10px;font-size:12.5px;padding:2px 0;}
   .co-row span{flex:0 0 140px;color:var(--ink-soft);}
   .co-summary{margin-top:8px;}
@@ -986,7 +988,7 @@
   var libraryCompanies = [];
   var libSelectedId = "";
   var libOpen = true;
-  var winCoOpen = false;
+  var winCoOpen = true;
 
   function blankCompany(){
     return {
@@ -1061,8 +1063,7 @@
     var detail = "";
     if(sel){
       detail =
-        '<button type="button" class="add-row-btn" id="libToggleBtn">' + (libOpen ? "▼ Hide" : "▶ Show") + ' company information</button>' +
-        (libOpen ? '<div class="subcard" style="margin-top:8px;">' +
+        ('<div class="subcard" style="margin-top:8px;">' +
           '<p class="section-title">General</p>' +
           '<div class="row2">' + f("Company name","name") +
             '<div class="field"><label>Type</label><select data-co="type">' +
@@ -1088,7 +1089,7 @@
           '<div class="field"><label>General notes</label><textarea data-co="notes">' + esc(sel.notes||"") + '</textarea></div>' +
           '<div class="inline-row"><button class="btn primary" id="libSaveBtn">💾 Save company</button>' +
           '<button class="btn" id="libDeleteBtn" style="color:var(--red);">Delete</button></div>' +
-        '</div>' : '');
+        '</div>');
     }
     el.innerHTML =
       '<div class="cal-head"><h2 style="margin:0;font-size:18px;">📚 Library</h2><button class="btn small" id="libBackBtn">← Back to board</button></div>' +
@@ -1111,8 +1112,6 @@
       renderLibrary();
       var n = el.querySelector('[data-co="name"]'); if(n) n.focus();
     });
-    var tog = el.querySelector("#libToggleBtn");
-    if(tog) tog.addEventListener("click", function(){ libOpen = !libOpen; renderLibrary(); });
     if(sel){
       el.querySelectorAll("[data-co]").forEach(function(inp){
         inp.addEventListener("change", function(){
@@ -2159,11 +2158,11 @@
       '<div class="permit-row">' +
         '<div class="field permit-checks">' +
           '<label class="checkline"><input type="checkbox" data-path="projectCreated.permitRequired" ' + (pc.permitRequired?"checked":"") + '> Permit required</label>' +
-          '<label class="checkline"><input type="checkbox" data-path="projectCreated.submittalsRequired" ' + (pc.submittalsRequired?"checked":"") + '> Submittals required</label>' +
         '</div>' +
         '<div class="field"><label>CI Permit Number</label><input type="text" data-path="projectCreated.permitNumber" value="' + esc(pc.permitNumber) + '"></div>' +
         '<div class="field"><label>Building Permit Number</label><input type="text" data-path="projectCreated.buildingPermitNumber" value="' + esc(pc.buildingPermitNumber||"") + '"></div>' +
       '</div>' +
+      '<div class="field" style="margin-top:6px;"><label class="checkline"><input type="checkbox" data-path="projectCreated.submittalsRequired" ' + (pc.submittalsRequired?"checked":"") + '> Submittals required</label></div>' +
 
       '<div class="field"><label>Links</label>' +
         '<div id="linksList">' + linksListHtml(c) + '</div>' +
