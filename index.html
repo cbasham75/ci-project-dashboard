@@ -127,8 +127,8 @@
   .board{
     display:flex;gap:14px;padding:18px;overflow-x:auto;
     align-items:flex-start;
-    height:calc(100vh - var(--topbar-h, 120px));
-    min-height:0;
+    position:fixed;top:var(--topbar-h, 120px);left:0;right:0;bottom:0;
+    box-sizing:border-box;min-height:0;
   }
   .column{
     flex:0 0 272px;width:272px;
