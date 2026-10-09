@@ -1204,7 +1204,7 @@
         '</div>' +
         '<table style="margin-top:8px;">' +
           '<tr>' + cell("Job / project", w.title) + cell(w.dateLabel, w.dateValue) + '</tr>' +
-          '<tr>' + cell("Customer", w.customer) + cell(w.assignedLabel, w.assigned) + '</tr>' +
+          '<tr><th>Customer</th><td colspan="3">' + (w.customer ? esc(w.customer) : '&nbsp;') + '</td></tr>' +
           full("Contractor(s)", w.contractors) +
           '<tr><th>Site address</th><td colspan="3">' + (w.address ? esc(w.address) : '&nbsp;') + '</td></tr>' +
           '<tr><th>Site contact(s)</th><td colspan="3">' + (w.contacts.length ? esc(w.contacts.join("  |  ")) : '&nbsp;') + '</td></tr>' +
