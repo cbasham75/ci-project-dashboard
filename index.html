@@ -210,6 +210,15 @@
     #woSheet .wo-page{box-shadow:none;margin:0;padding:0;width:auto;}
     @page{margin:.5in;}
   }
+  .todo-add{display:flex;gap:8px;margin-bottom:14px;}
+  .todo-add input{flex:1;}
+  .todo-item{display:flex;align-items:flex-start;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line-soft);}
+  .todo-item input[type=checkbox]{margin-top:3px;width:16px;height:16px;flex:0 0 auto;}
+  .todo-item .todo-text{flex:1;word-break:break-word;font-size:13.5px;}
+  .todo-item.done .todo-text{text-decoration:line-through;color:var(--ink-soft);}
+  .todo-item .todo-del{border:none;background:none;color:var(--ink-soft);cursor:pointer;font-size:15px;padding:0 4px;}
+  .todo-item .todo-del:hover{color:var(--red);}
+  .todo-done-toggle{margin-top:14px;}
   .permit-row{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px;align-items:end;}
   .permit-row .field.permit-checks{margin-bottom:13px;min-height:38px;}
   .permit-checks{display:flex;align-items:center;min-height:38px;}
@@ -479,6 +488,7 @@
     <button class="btn ghost small" id="exportBtn">Export JSON</button>
     <button class="btn ghost small" id="importBtn">Import JSON</button>
     <button class="btn ghost small" id="libraryBtn">📚 Library</button>
+    <button class="btn ghost small" id="todoBtn">✅ My To-Do <span id="todoCount" style="font-weight:700;"></span></button>
     <input type="file" id="importFile" accept="application/json" style="display:none;">
   </div>
 </header>
@@ -554,6 +564,11 @@
 </div>
 
 <div id="woSheet" style="display:none;"></div>
+
+<!-- To-Do Modal (private per user) -->
+<div class="overlay" id="todoOverlay">
+  <div class="modal" id="todoModal" style="max-width:520px;"></div>
+</div>
 
 <!-- Service Job Modal -->
 <div class="overlay" id="serviceOverlay">
@@ -1233,6 +1248,107 @@
       el.querySelectorAll(".wo-signoff").forEach(function(n){ n.style.display = so.checked ? "block" : "none"; });
     });
   }
+
+  /* ---------------- My To-Do (private per user) ---------------- */
+  var todos = [];
+  var todoDoneOpen = false;
+
+  function todoUserId(){ return currentSession && currentSession.user ? currentSession.user.id : null; }
+  async function loadTodosRemote(){
+    if(!supabaseClient || !todoUserId()) return;
+    var res = await supabaseClient.from("todos").select("*").eq("user_id", todoUserId()).order("created_at");
+    if(res.error) throw res.error;
+    todos = res.data;
+    updateTodoCount();
+  }
+  function updateTodoCount(){
+    var n = todos.filter(function(t){ return !t.done; }).length;
+    var el = document.getElementById("todoCount");
+    if(el) el.textContent = n ? "(" + n + ")" : "";
+  }
+  function newId(){
+    return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(ch){
+      var r = Math.random()*16|0; return (ch === "x" ? r : (r&0x3|0x8)).toString(16);
+    });
+  }
+  function addTodo(text){
+    text = (text || "").trim();
+    if(!text) return;
+    var t = {id:newId(), text:text, done:false, created_at:new Date().toISOString(), completed_at:null};
+    todos.push(t);
+    renderTodos();
+    if(supabaseClient && todoUserId()){
+      supabaseClient.from("todos").insert({id:t.id, text:t.text}).then(function(res){
+        if(res.error){
+          todos = todos.filter(function(x){ return x.id !== t.id; });
+          renderTodos();
+          toast("Couldn't save task — " + res.error.message);
+        }
+      });
+    }
+  }
+  function toggleTodo(id, done){
+    var t = todos.find(function(x){ return x.id === id; }); if(!t) return;
+    t.done = done; t.completed_at = done ? new Date().toISOString() : null;
+    renderTodos();
+    if(supabaseClient && todoUserId()){
+      supabaseClient.from("todos").update({done:t.done, completed_at:t.completed_at}).eq("id", id).then(function(res){
+        if(res.error) toast("Couldn't update task — " + res.error.message);
+      });
+    }
+  }
+  function deleteTodo(id){
+    todos = todos.filter(function(x){ return x.id !== id; });
+    renderTodos();
+    if(supabaseClient && todoUserId()){
+      supabaseClient.from("todos").delete().eq("id", id).then(function(res){
+        if(res.error) toast("Couldn't delete task — " + res.error.message);
+      });
+    }
+  }
+  function renderTodos(){
+    updateTodoCount();
+    var modal = document.getElementById("todoModal");
+    var open = todos.filter(function(t){ return !t.done; }).sort(function(a,b){ return (a.created_at||"").localeCompare(b.created_at||""); });
+    var done = todos.filter(function(t){ return t.done; }).sort(function(a,b){ return (b.completed_at||"").localeCompare(a.completed_at||""); });
+    function item(t){
+      return '<div class="todo-item' + (t.done ? " done" : "") + '" data-id="' + esc(t.id) + '">' +
+        '<input type="checkbox" ' + (t.done ? "checked" : "") + '>' +
+        '<span class="todo-text">' + esc(t.text) + '</span>' +
+        '<button class="todo-del" title="Delete task">✕</button></div>';
+    }
+    var typed = modal.querySelector("#todoInput") ? modal.querySelector("#todoInput").value : "";
+    modal.innerHTML =
+      '<div class="modal-head"><div><h2>My To-Do</h2><div class="sub">Private — only you can see this list</div></div>' +
+        '<button class="close-x" id="todoCloseX">✕</button></div>' +
+      '<div class="modal-body">' +
+        '<div class="todo-add"><input type="text" id="todoInput" placeholder="Add a task…" maxlength="300">' +
+          '<button class="btn primary" id="todoAddBtn">+ Add task</button></div>' +
+        (open.length ? open.map(item).join("") : '<div class="note-empty">Nothing to do — nice.</div>') +
+        (done.length ? '<button type="button" class="add-row-btn todo-done-toggle" id="todoDoneToggle">' + (todoDoneOpen ? "▼ Hide" : "▶ Show") + ' completed (' + done.length + ')</button>' +
+          (todoDoneOpen ? done.map(item).join("") : '') : '') +
+      '</div>';
+    var inp = modal.querySelector("#todoInput");
+    inp.value = typed;
+    function submit(){ var v = inp.value; inp.value = ""; addTodo(v); var n = document.getElementById("todoInput"); if(n) n.focus(); }
+    inp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); submit(); } });
+    modal.querySelector("#todoAddBtn").addEventListener("click", submit);
+    modal.querySelector("#todoCloseX").addEventListener("click", function(){ closeOverlay("todoOverlay"); });
+    modal.querySelectorAll(".todo-item").forEach(function(row){
+      var id = row.dataset.id;
+      row.querySelector("input[type=checkbox]").addEventListener("change", function(e){ toggleTodo(id, e.target.checked); });
+      row.querySelector(".todo-del").addEventListener("click", function(){ deleteTodo(id); });
+    });
+    var dt = modal.querySelector("#todoDoneToggle");
+    if(dt) dt.addEventListener("click", function(){ todoDoneOpen = !todoDoneOpen; renderTodos(); });
+  }
+  function showTodos(){
+    renderTodos();
+    openOverlay("todoOverlay");
+    loadTodosRemote().then(function(){ renderTodos(); var n = document.getElementById("todoInput"); if(n) n.focus(); }).catch(function(){});
+    var n = document.getElementById("todoInput"); if(n) n.focus();
+  }
+  document.getElementById("todoBtn").addEventListener("click", showTodos);
 
   /* ---------------- Service Jobs ---------------- */
   var serviceJobs = [];
@@ -3531,6 +3647,8 @@
   }
   function onSignedOut(){
     currentSession = null;
+    todos = []; updateTodoCount();
+    closeOverlay("todoOverlay");
     currentUserName = "";
     cards = [];
     alerts = [];
@@ -3672,6 +3790,7 @@
 
     try { await loadLibraryRemote(); } catch(e){ console.error("Library load failed", e); }
     try { await loadServiceJobsRemote(); } catch(e){ console.error("Service jobs load failed", e); }
+    try { await loadTodosRemote(); } catch(e){ console.error("To-do load failed", e); }
     cards = loadedCards;
     alerts = loadedAlerts;
     cards.forEach(migrateCard);
@@ -3698,6 +3817,7 @@
 
       if(!activeDetailId){
         try { await loadLibraryRemote(); } catch(e){}
+        if(!document.getElementById("todoOverlay").classList.contains("open")){ try { await loadTodosRemote(); } catch(e){} }
         if(!document.getElementById("serviceOverlay").classList.contains("open")){
           try { await loadServiceJobsRemote(); } catch(e){}
           if(document.getElementById("serviceCalView").style.display !== "none") renderServiceCalendar();
