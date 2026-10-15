@@ -219,6 +219,12 @@
   .todo-item .todo-del{border:none;background:none;color:var(--ink-soft);cursor:pointer;font-size:15px;padding:0 4px;}
   .todo-item .todo-del:hover{color:var(--red);}
   .todo-done-toggle{margin-top:14px;}
+  .todo-grip{cursor:grab;color:var(--ink-soft);letter-spacing:-2px;user-select:none;margin-top:1px;font-size:13px;}
+  .todo-item.dragging{opacity:.4;}
+  .todo-item.drop-before{box-shadow:0 -2px 0 var(--blue);}
+  .todo-item.drop-after{box-shadow:0 2px 0 var(--blue);}
+  .todo-item .todo-text{cursor:text;}
+  .todo-item .todo-edit{flex:1;}
   .permit-row{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px;align-items:end;}
   .permit-row .field.permit-checks{margin-bottom:13px;min-height:38px;}
   .permit-checks{display:flex;align-items:center;min-height:38px;}
@@ -257,9 +263,23 @@
   .card .pmbar > i{display:block;height:100%;background:var(--green);}
   .tile-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px;}
   .tile-badge{
-    font-size:10px;font-weight:700;color:var(--ink-soft);background:var(--line-soft);
-    border-radius:4px;padding:2px 6px;
+    font-size:10.5px;font-weight:800;color:var(--ink-soft);background:var(--line-soft);
+    border-radius:4px;padding:2px 7px;border:1px solid transparent;
   }
+  .tile-badge.st-in_progress{background:rgba(201,130,14,.18);border-color:rgba(201,130,14,.45);color:var(--amber);}
+  .tile-badge.st-complete{background:rgba(63,125,88,.2);border-color:rgba(63,125,88,.55);color:var(--green);
+    position:relative;overflow:hidden;animation:twinkleGlow 3.6s ease-in-out infinite;}
+  .tile-badge.st-complete::after{content:"";position:absolute;top:0;left:-70%;width:40%;height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent);transform:skewX(-20deg);
+    animation:twinkleSweep 3.6s ease-in-out infinite;}
+  .tile-badge.st-on_hold{background:rgba(120,120,120,.18);border-color:rgba(120,120,120,.45);color:var(--ink-soft);}
+  .tile-badge.st-reactivated{background:rgba(44,82,130,.16);border-color:rgba(44,82,130,.45);color:var(--blue);}
+  @keyframes twinkleSweep{0%,62%{left:-70%}100%{left:140%}}
+  @keyframes twinkleGlow{0%,62%,100%{box-shadow:0 0 0 rgba(63,125,88,0)}80%{box-shadow:0 0 7px rgba(63,125,88,.55)}}
+  @media (prefers-reduced-motion: reduce){.tile-badge.st-complete,.tile-badge.st-complete::after{animation:none;}}
+  .vdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--amber);}
+  .vdot.st-complete{background:var(--green);} .vdot.st-on_hold{background:#8a8a8a;} .vdot.st-reactivated{background:var(--blue);}
+  .stage-select.st-complete{border-color:var(--green);} .stage-select.st-on_hold{border-color:#8a8a8a;} .stage-select.st-reactivated{border-color:var(--blue);}
   .tile-note{font-size:11px;color:var(--ink-soft);font-style:italic;margin-bottom:6px;line-height:1.3;}
 
   /* ---------- Modal ---------- */
@@ -383,6 +403,10 @@
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   .cal-bubble.done{background:rgba(63,125,88,.16);border-color:rgba(63,125,88,.4);color:var(--green);font-weight:600;}
+  .cal-bubble.st-complete{background:rgba(63,125,88,.16);border-color:rgba(63,125,88,.4);color:var(--green);font-weight:600;}
+  .cal-bubble.st-in_progress{background:rgba(201,130,14,.18);border-color:rgba(201,130,14,.45);color:var(--amber);font-weight:600;}
+  .cal-bubble.st-reactivated{background:rgba(44,82,130,.16);border-color:rgba(44,82,130,.45);color:var(--blue);font-weight:600;}
+  .cal-bubble.st-on_hold,.cal-bubble.hold{background:rgba(120,120,120,.2);border-color:rgba(120,120,120,.5);color:#8a8a8a;font-weight:600;}
   .cal-bubble.pending{background:rgba(201,130,14,.18);border-color:rgba(201,130,14,.45);color:var(--amber);font-weight:600;}
 
   .report-filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;padding:12px 14px;
@@ -645,6 +669,22 @@
     {key:"final_invoiced",        label:"Final Invoiced",         color:"#2F6B4F"},
     {key:"project_closed",        label:"Project Closed",         color:"var(--charcoal)"}
   ];
+  var STAGE_KEYS = ["in_progress","complete","on_hold","reactivated"];
+  // The card-level estimatingStage mirrors the LATEST version's status so existing
+  // reports/labels keep working while each version carries its own stage.
+  function syncEstimatingStage(c){
+    var vs = c.estimateVersions || [];
+    if(vs.length) c.estimatingStage = vs[vs.length-1].status || "in_progress";
+  }
+  function verStatus(c, vi){
+    var v = (c.estimateVersions || [])[vi];
+    return (v && STAGE_KEYS.indexOf(v.status) !== -1) ? v.status : "in_progress";
+  }
+  function isOnHoldHLA(c){ return !!(c.hla && c.hla.status === "hold"); }
+  // Calendar shows active cards plus On Hold ones (those render gray); Lost/Archived stay hidden.
+  function calVisible(c){ return !isArchived(c) || isOnHoldHLA(c); }
+  function stageBubbleClass(c, status){ return isOnHoldHLA(c) ? "hold" : "st-" + status; }
+  function plainBubbleClass(c, done){ return isOnHoldHLA(c) ? "hold" : (done ? "done" : "pending"); }
   var ESTIMATING_STAGES = [
     {key:"in_progress", label:"In Progress"},
     {key:"complete",    label:"Complete"},
@@ -763,7 +803,11 @@
     if(!Array.isArray(c.estimateVersions) || !c.estimateVersions.length){
       c.estimateVersions = [{id: uid(), title:"", estimator: c.estimator || "", timestamp:null, stage:"", dueDate:""}];
     }
-    c.estimateVersions.forEach(function(v){
+    c.estimateVersions.forEach(function(v, vi, arr){
+      if(STAGE_KEYS.indexOf(v.status) === -1){
+        // Older data: the card had one stage. Latest version inherits it; earlier ones were superseded.
+        v.status = (vi === arr.length - 1) ? (STAGE_KEYS.indexOf(c.estimatingStage) !== -1 ? c.estimatingStage : "in_progress") : "complete";
+      }
       if(typeof v.dueDate !== "string") v.dueDate = "";
       if(typeof v.description !== "string") v.description = "";
       if(typeof v.materialPrice !== "number") v.materialPrice = 0;
@@ -783,6 +827,7 @@
         latestVerForMigration.laborHours = c.estimateComplete.laborHours || 0;
       }
     }
+    syncEstimatingStage(c);
     if(!Array.isArray(c.bidInstructions)) c.bidInstructions = [];
     if(Array.isArray(c.changeOrders)){
       c.changeOrders.forEach(function(co){
@@ -1026,7 +1071,7 @@
       bidDueTime: data.bidDueTime || "",
       contractAmount: 0,
       changeOrders: [],
-      estimateVersions: [{id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:"", description:"", materialPrice:0, laborPrice:0, tax:0, laborHours:0}],
+      estimateVersions: [{id: uid(), title:"", estimator:"", timestamp:null, stage:"", status:"in_progress", dueDate:"", description:"", materialPrice:0, laborPrice:0, tax:0, laborHours:0}],
       estimateComplete: {completedAt:null, alertSent:false},
       submittedTo: [],
       projectCreated: {
@@ -1252,10 +1297,12 @@
   /* ---------------- My To-Do (private per user) ---------------- */
   var todos = [];
   var todoDoneOpen = false;
+  var todoEditingId = null;
 
   function todoUserId(){ return currentSession && currentSession.user ? currentSession.user.id : null; }
+  function todoDb(){ return supabaseClient && todoUserId(); }
   async function loadTodosRemote(){
-    if(!supabaseClient || !todoUserId()) return;
+    if(!todoDb()) return;
     var res = await supabaseClient.from("todos").select("*").eq("user_id", todoUserId()).order("created_at");
     if(res.error) throw res.error;
     todos = res.data;
@@ -1271,14 +1318,26 @@
       var r = Math.random()*16|0; return (ch === "x" ? r : (r&0x3|0x8)).toString(16);
     });
   }
+  // Open tasks in the user's own order. Tasks never reordered (no sort_order) sit first, oldest first.
+  function orderedOpenTodos(){
+    return todos.filter(function(t){ return !t.done; }).sort(function(a,b){
+      var ao = (a.sort_order === null || a.sort_order === undefined) ? -Infinity : a.sort_order;
+      var bo = (b.sort_order === null || b.sort_order === undefined) ? -Infinity : b.sort_order;
+      if(ao !== bo) return ao < bo ? -1 : 1;
+      return (a.created_at||"").localeCompare(b.created_at||"");
+    });
+  }
+  function todoFail(msg, res){ if(res && res.error) toast(msg + " — " + res.error.message); }
   function addTodo(text){
     text = (text || "").trim();
     if(!text) return;
-    var t = {id:newId(), text:text, done:false, created_at:new Date().toISOString(), completed_at:null};
+    var max = 0;
+    todos.forEach(function(t){ if(typeof t.sort_order === "number" && t.sort_order > max) max = t.sort_order; });
+    var t = {id:newId(), text:text, done:false, created_at:new Date().toISOString(), completed_at:null, sort_order:max + 1};
     todos.push(t);
     renderTodos();
-    if(supabaseClient && todoUserId()){
-      supabaseClient.from("todos").insert({id:t.id, text:t.text}).then(function(res){
+    if(todoDb()){
+      supabaseClient.from("todos").insert({id:t.id, text:t.text, sort_order:t.sort_order}).then(function(res){
         if(res.error){
           todos = todos.filter(function(x){ return x.id !== t.id; });
           renderTodos();
@@ -1290,41 +1349,72 @@
   function toggleTodo(id, done){
     var t = todos.find(function(x){ return x.id === id; }); if(!t) return;
     t.done = done; t.completed_at = done ? new Date().toISOString() : null;
+    if(!done){ // un-completing puts it back at the end of the open list
+      var max = 0; todos.forEach(function(x){ if(typeof x.sort_order === "number" && x.sort_order > max) max = x.sort_order; });
+      t.sort_order = max + 1;
+    }
     renderTodos();
-    if(supabaseClient && todoUserId()){
-      supabaseClient.from("todos").update({done:t.done, completed_at:t.completed_at}).eq("id", id).then(function(res){
-        if(res.error) toast("Couldn't update task — " + res.error.message);
-      });
+    if(todoDb()){
+      supabaseClient.from("todos").update({done:t.done, completed_at:t.completed_at, sort_order:t.sort_order}).eq("id", id).then(function(res){ todoFail("Couldn't update task", res); });
+    }
+  }
+  function editTodoText(id, text){
+    var t = todos.find(function(x){ return x.id === id; }); if(!t) return;
+    text = (text || "").trim();
+    if(!text || text === t.text) return;
+    t.text = text;
+    if(todoDb()){
+      supabaseClient.from("todos").update({text:text}).eq("id", id).then(function(res){ todoFail("Couldn't save edit", res); });
     }
   }
   function deleteTodo(id){
     todos = todos.filter(function(x){ return x.id !== id; });
     renderTodos();
-    if(supabaseClient && todoUserId()){
-      supabaseClient.from("todos").delete().eq("id", id).then(function(res){
-        if(res.error) toast("Couldn't delete task — " + res.error.message);
-      });
+    if(todoDb()){
+      supabaseClient.from("todos").delete().eq("id", id).then(function(res){ todoFail("Couldn't delete task", res); });
+    }
+  }
+  // Move task `dragId` to just before/after `targetId` and renumber the open list 1..n.
+  function reorderTodo(dragId, targetId, after){
+    if(dragId === targetId) return;
+    var list = orderedOpenTodos();
+    var from = list.findIndex(function(t){ return t.id === dragId; });
+    if(from === -1) return;
+    var item = list.splice(from, 1)[0];
+    var to = list.findIndex(function(t){ return t.id === targetId; });
+    if(to === -1) return;
+    list.splice(after ? to + 1 : to, 0, item);
+    var changed = [];
+    list.forEach(function(t, i){
+      if(t.sort_order !== i + 1){ t.sort_order = i + 1; changed.push({id:t.id, text:t.text, done:false, completed_at:null, sort_order:t.sort_order}); }
+    });
+    renderTodos();
+    if(todoDb() && changed.length){
+      supabaseClient.from("todos").upsert(changed).then(function(res){ todoFail("Couldn't save new order", res); });
     }
   }
   function renderTodos(){
     updateTodoCount();
     var modal = document.getElementById("todoModal");
-    var open = todos.filter(function(t){ return !t.done; }).sort(function(a,b){ return (a.created_at||"").localeCompare(b.created_at||""); });
+    var open = orderedOpenTodos();
     var done = todos.filter(function(t){ return t.done; }).sort(function(a,b){ return (b.completed_at||"").localeCompare(a.completed_at||""); });
     function item(t){
-      return '<div class="todo-item' + (t.done ? " done" : "") + '" data-id="' + esc(t.id) + '">' +
+      var editing = todoEditingId === t.id;
+      return '<div class="todo-item' + (t.done ? " done" : "") + '" data-id="' + esc(t.id) + '"' + (t.done || editing ? '' : ' draggable="true"') + '>' +
+        (t.done ? '<span class="todo-grip" style="visibility:hidden;">⋮⋮</span>' : '<span class="todo-grip" title="Drag to reorder">⋮⋮</span>') +
         '<input type="checkbox" ' + (t.done ? "checked" : "") + '>' +
-        '<span class="todo-text">' + esc(t.text) + '</span>' +
+        (editing ? '<input type="text" class="todo-edit" maxlength="300" value="' + esc(t.text) + '">'
+                 : '<span class="todo-text" title="Click to edit">' + esc(t.text) + '</span>') +
         '<button class="todo-del" title="Delete task">✕</button></div>';
     }
     var typed = modal.querySelector("#todoInput") ? modal.querySelector("#todoInput").value : "";
     modal.innerHTML =
-      '<div class="modal-head"><div><h2>My To-Do</h2><div class="sub">Private — only you can see this list</div></div>' +
+      '<div class="modal-head"><div><h2>My To-Do</h2><div class="sub">Private — only you can see this list · click a task to edit · drag ⋮⋮ to reorder</div></div>' +
         '<button class="close-x" id="todoCloseX">✕</button></div>' +
       '<div class="modal-body">' +
         '<div class="todo-add"><input type="text" id="todoInput" placeholder="Add a task…" maxlength="300">' +
           '<button class="btn primary" id="todoAddBtn">+ Add task</button></div>' +
-        (open.length ? open.map(item).join("") : '<div class="note-empty">Nothing to do — nice.</div>') +
+        '<div id="todoOpenList">' + (open.length ? open.map(item).join("") : '<div class="note-empty">Nothing to do — nice.</div>') + '</div>' +
         (done.length ? '<button type="button" class="add-row-btn todo-done-toggle" id="todoDoneToggle">' + (todoDoneOpen ? "▼ Hide" : "▶ Show") + ' completed (' + done.length + ')</button>' +
           (todoDoneOpen ? done.map(item).join("") : '') : '') +
       '</div>';
@@ -1334,18 +1424,56 @@
     inp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); submit(); } });
     modal.querySelector("#todoAddBtn").addEventListener("click", submit);
     modal.querySelector("#todoCloseX").addEventListener("click", function(){ closeOverlay("todoOverlay"); });
+
     modal.querySelectorAll(".todo-item").forEach(function(row){
       var id = row.dataset.id;
       row.querySelector("input[type=checkbox]").addEventListener("change", function(e){ toggleTodo(id, e.target.checked); });
       row.querySelector(".todo-del").addEventListener("click", function(){ deleteTodo(id); });
+      var txt = row.querySelector(".todo-text");
+      if(txt) txt.addEventListener("click", function(){ todoEditingId = id; renderTodos(); });
+      var ed = row.querySelector(".todo-edit");
+      if(ed){
+        ed.focus(); ed.setSelectionRange(ed.value.length, ed.value.length);
+        var finished = false;
+        function finish(save){
+          if(finished) return; finished = true;
+          if(save) editTodoText(id, ed.value);
+          todoEditingId = null; renderTodos();
+        }
+        ed.addEventListener("keydown", function(e){
+          if(e.key === "Enter"){ e.preventDefault(); finish(true); }
+          else if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); finish(false); }
+        });
+        ed.addEventListener("blur", function(){ finish(true); });
+      }
+      // drag to reorder (open tasks only)
+      if(row.draggable){
+        row.addEventListener("dragstart", function(e){ e.dataTransfer.setData("text/plain", id); e.dataTransfer.effectAllowed = "move"; row.classList.add("dragging"); });
+        row.addEventListener("dragend", function(){ row.classList.remove("dragging"); modal.querySelectorAll(".drop-before,.drop-after").forEach(function(n){ n.classList.remove("drop-before","drop-after"); }); });
+      }
+      if(!t_isDone(id)){
+        row.addEventListener("dragover", function(e){
+          e.preventDefault();
+          var r = row.getBoundingClientRect(), after = e.clientY > r.top + r.height/2;
+          row.classList.toggle("drop-after", after); row.classList.toggle("drop-before", !after);
+        });
+        row.addEventListener("dragleave", function(){ row.classList.remove("drop-before","drop-after"); });
+        row.addEventListener("drop", function(e){
+          e.preventDefault();
+          var r = row.getBoundingClientRect(), after = e.clientY > r.top + r.height/2;
+          reorderTodo(e.dataTransfer.getData("text/plain"), id, after);
+        });
+      }
     });
     var dt = modal.querySelector("#todoDoneToggle");
     if(dt) dt.addEventListener("click", function(){ todoDoneOpen = !todoDoneOpen; renderTodos(); });
   }
+  function t_isDone(id){ var t = todos.find(function(x){ return x.id === id; }); return !t || t.done; }
   function showTodos(){
+    todoEditingId = null;
     renderTodos();
     openOverlay("todoOverlay");
-    loadTodosRemote().then(function(){ renderTodos(); var n = document.getElementById("todoInput"); if(n) n.focus(); }).catch(function(){});
+    loadTodosRemote().then(function(){ if(!todoEditingId) renderTodos(); var n = document.getElementById("todoInput"); if(n) n.focus(); }).catch(function(){});
     var n = document.getElementById("todoInput"); if(n) n.focus();
   }
   document.getElementById("todoBtn").addEventListener("click", showTodos);
@@ -1542,7 +1670,7 @@
           var i = Number(el.closest("[data-row-index]").dataset.rowIndex);
           sjDraft[key][i][el.dataset.field] = el.value;
         });
-        if(key === "links") el.addEventListener("change", function(){ renderServiceModal(); });
+        if(key === "links") el.addEventListener("change", function(){ keepFocusRender("#serviceModal", renderServiceModal); });
       });
     }
     bindRows("sjContacts","contacts");
@@ -2220,33 +2348,33 @@
     for(var d=1; d<=daysInMonth; d++){
       var dateStr = formatDateISO(new Date(year, month, d));
 
-      var dayCards = cards.filter(function(c){ return c.bidDueDate === dateStr && !isArchived(c); });
+      var dayCards = cards.filter(function(c){ return c.bidDueDate === dateStr && calVisible(c); });
       var bubbles = dayCards.map(function(c){
         var label = esc(c.projectName || "Untitled") + " / " + esc(c.id);
-        return '<button type="button" class="cal-bubble ' + (isPastEstimating(c) ? "done" : "pending") + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
+        return '<button type="button" class="cal-bubble ' + stageBubbleClass(c, verStatus(c, 0)) + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
       }).join("");
 
       // Change-order requests due this day: yellow until description, pricing, and a timestamp are filled in.
       cards.forEach(function(c){
-        if(isArchived(c)) return;
+        if(!calVisible(c)) return;
         (c.changeOrders || []).forEach(function(co){
           if(co.coDueDate === dateStr){
             var coValue = (Number(co.materialPrice)||0) + (Number(co.laborPrice)||0) + (Number(co.tax)||0);
             var fulfilled = !!(co.description && co.description.trim() && coValue > 0);
             var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · " + esc(co.num);
-            bubbles += '<button type="button" class="cal-bubble ' + (fulfilled ? "done" : "pending") + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
+            bubbles += '<button type="button" class="cal-bubble ' + plainBubbleClass(c, fulfilled) + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
           }
         });
       });
 
       // Version due dates (V2 and later only — V1 uses the card's main bid due date above).
       cards.forEach(function(c){
-        if(isArchived(c)) return;
+        if(!calVisible(c)) return;
         (c.estimateVersions || []).forEach(function(ver, vi){
           if(vi === 0) return;
           if(ver.dueDate === dateStr){
             var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · V" + (vi+1) + (ver.description ? " — " + esc(ver.description) : "");
-            bubbles += '<button type="button" class="cal-bubble ' + (isPastEstimating(c) ? "done" : "pending") + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
+            bubbles += '<button type="button" class="cal-bubble ' + stageBubbleClass(c, verStatus(c, vi)) + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
           }
         });
       });
@@ -2304,9 +2432,13 @@
     }
 
     var badges = [];
-    if(card.status === "estimating"){
-      var stageInfo = ESTIMATING_STAGES.find(function(s){ return s.key === card.estimatingStage; });
-      badges.push('<span class="tile-badge">' + esc(stageInfo ? stageInfo.label : "In Progress") + '</span>');
+    if(card.status === "estimating" || card.status === "estimate_submitted"){
+      var vers = card.estimateVersions || [];
+      vers.forEach(function(v, vi){
+        var st = verStatus(card, vi);
+        var info = ESTIMATING_STAGES.find(function(x){ return x.key === st; });
+        badges.push('<span class="tile-badge st-' + st + '">' + (vers.length > 1 ? "V" + (vi+1) + " · " : "") + esc(info ? info.label : "In Progress") + '</span>');
+      });
     }
     if((card.changeOrders||[]).length){
       badges.push('<span class="tile-badge">CO: ' + card.changeOrders.length + '</span>');
@@ -2411,12 +2543,12 @@
     var wrap = document.getElementById("directCustomersContainer");
     wrap.innerHTML = formDirectCustomers.map(function(val, i){
       return '<div class="inline-row" style="margin-bottom:6px;">' +
-        '<input type="text" class="compact-input" style="flex:1;" data-dc-index="' + i + '" value="' + esc(val) + '" placeholder="Contractor or customer name">' +
+        '<select class="compact-input" style="flex:1;" data-dc-index="' + i + '">' + companyOptionsHtml(val) + '</select>' +
         (formDirectCustomers.length > 1 ? '<button type="button" class="miniremove" data-dc-remove="' + i + '">Remove</button>' : '') +
       '</div>';
     }).join("");
     wrap.querySelectorAll("[data-dc-index]").forEach(function(el){
-      el.addEventListener("input", function(){ formDirectCustomers[Number(el.dataset.dcIndex)] = el.value; });
+      el.addEventListener("change", function(){ formDirectCustomers[Number(el.dataset.dcIndex)] = el.value; });
     });
     wrap.querySelectorAll("[data-dc-remove]").forEach(function(el){
       el.addEventListener("click", function(){
@@ -2515,7 +2647,7 @@
         // light re-render for things that affect summary/board without losing focus on text fields
         if(el.dataset.path === "estimatingStage" || el.dataset.path === "projectCreated.winningContractor"){
           renderBoard();
-          renderDetail();
+          renderDetailKeepFocus();
         } else if(el.dataset.path === "contractAmount" || el.dataset.path.indexOf("changeOrders") === 0 || el.dataset.path === "pm.percentComplete"){
           updateSummaryBar();
           renderBoard();
@@ -2564,6 +2696,35 @@
       '<div>Total value<strong>' + money(totalValue(c)) + '</strong></div>' +
       '<div>% complete<strong>' + (Number(c.pm.percentComplete)||0) + '%</strong></div>';
   }
+
+  // Re-render without losing keyboard focus. Deferred one tick so that, when the re-render was
+  // triggered by pressing Tab (blur -> change), we restore focus to the field Tab was moving to.
+  function focusSelectorFor(a, rootSel){
+    if(!a || !a.closest || !a.closest(rootSel)) return null;
+    var d = a.dataset || {};
+    function q(v){ return String(v).replace(/"/g, '\\"'); }
+    if(d.vfield) return rootSel + ' [data-vfield="' + q(d.vfield) + '"]';
+    if(d.path)   return rootSel + ' [data-path="' + q(d.path) + '"]';
+    if(d.sj)     return rootSel + ' [data-sj="' + q(d.sj) + '"]';
+    if(a.id)     return '#' + a.id;
+    var row = a.closest("[data-row-index]");
+    var box = row && row.parentElement && row.parentElement.id;
+    if(row && box && d.field) return '#' + box + ' [data-row-index="' + row.dataset.rowIndex + '"] [data-field="' + q(d.field) + '"]';
+    if(d.field && d.sjrow) return rootSel + ' [data-sjrow="' + q(d.sjrow) + '"][data-field="' + q(d.field) + '"]';
+    if(d.tab) return rootSel + ' [data-tab="' + q(d.tab) + '"]';
+    return null;
+  }
+  function keepFocusRender(rootSel, renderFn){
+    setTimeout(function(){
+      var sel = focusSelectorFor(document.activeElement, rootSel);
+      renderFn();
+      if(sel){
+        var n = document.querySelector(sel);
+        if(n){ n.focus(); if(n.select && /^(text|url|search|tel|email|number)$/.test(n.type||"")){ try { n.select(); } catch(e){} } }
+      }
+    }, 0);
+  }
+  function renderDetailKeepFocus(){ keepFocusRender("#detailModal", renderDetail); }
 
   function renderDetail(){
     var c = card();
@@ -2711,7 +2872,7 @@
         '<select class="compact-input" style="flex:0 0 110px;" data-field="division">' +
           ['SCS','Security','AV'].map(function(o){ return '<option value="'+o+'"' + (sub.division===o?' selected':'') + '>'+o+'</option>'; }).join('') +
         '</select>' +
-        '<input type="text" class="compact-input" style="flex:1;" data-field="info" value="' + esc(sub.info) + '" placeholder="Company, contact, number, email">' +
+        '<select class="compact-input" style="flex:1;" data-field="info">' + companyOptionsHtml(sub.info) + '</select>' +
         '<button class="miniremove" data-remove-sub="' + i + '">Remove</button>' +
       '</div>';
     }).join("");
@@ -2725,11 +2886,19 @@
     }).join("");
   }
 
+  function companyOptionsHtml(selected){
+    var opts = '<option value=""' + (!selected?" selected":"") + '>— select from Library —</option>';
+    libraryCompanies.slice().sort(function(a,b){ return (a.name||"").localeCompare(b.name||""); }).forEach(function(co){
+      opts += '<option value="' + esc(co.name) + '"' + (co.name===selected?" selected":"") + '>' + esc(co.name) + '</option>';
+    });
+    if(selected && !findCompanyByName(selected)) opts += '<option value="' + esc(selected) + '" selected>' + esc(selected) + ' (not in Library)</option>';
+    return opts;
+  }
   function directCustomersHtml(c){
     if(!c.directCustomers.length) return '<div class="note-empty">No contractors added yet.</div>';
     return c.directCustomers.map(function(dc, i){
       return '<div class="inline-row" data-row-index="' + i + '" style="margin-bottom:6px;">' +
-        '<input type="text" class="compact-input" style="flex:1;" data-field="name" value="' + esc(dc.name) + '" placeholder="Contractor or customer name">' +
+        '<select class="compact-input" style="flex:1;" data-field="name">' + companyOptionsHtml(dc.name) + '</select>' +
         '<button class="miniremove" data-remove-dc="' + i + '">Remove</button>' +
       '</div>';
     }).join("");
@@ -2743,26 +2912,20 @@
 
     var subtabsHtml = versions.map(function(ver, i){
       var label = "V" + (i+1) + (ver.stage ? " · " + esc(ver.stage) : "");
-      return '<button class="subtab ' + (i===activeEstimateVersion?"active":"") + '" data-vtab="' + i + '">' + label + '</button>';
+      return '<button class="subtab ' + (i===activeEstimateVersion?"active":"") + '" data-vtab="' + i + '"><span class="vdot st-' + verStatus(c, i) + '"></span>' + label + '</button>';
     }).join("") + '<button class="subtab add" id="addVersionBtn">+ New version</button>';
 
     return '' +
-      '<p class="section-title">Estimating stage</p>' +
-      '<div class="field" style="max-width:220px;">' +
-        '<select data-path="estimatingStage">' +
-          ESTIMATING_STAGES.map(function(s){
-            return '<option value="' + s.key + '"' + (c.estimatingStage===s.key?" selected":"") + '>' + s.label + '</option>';
-          }).join("") +
-        '</select>' +
-      '</div>' +
-
-      '<p class="section-title" style="margin-top:16px;">Estimate versions</p>' +
+      '<p class="section-title">Estimate versions</p>' +
       '<div class="subtabs" id="versionTabs">' + subtabsHtml + '</div>' +
       '<div class="subcard">' +
         '<div class="inline-row">' +
+          '<div class="field" style="flex:1 1 140px;"><label>Stage (this version)</label><select data-vfield="status" class="stage-select st-' + verStatus(c, activeEstimateVersion) + '">' +
+            ESTIMATING_STAGES.map(function(s2){ return '<option value="' + s2.key + '"' + (verStatus(c, activeEstimateVersion)===s2.key?" selected":"") + '>' + s2.label + '</option>'; }).join("") +
+          '</select></div>' +
           '<div class="field" style="flex:1 1 140px;"><label>Estimator</label><select data-vfield="estimator">' + teamMemberOptionsHtml(v.estimator) + '</select></div>' +
-          '<div class="field" style="flex:1 1 150px;"><label>Stage</label><input type="text" list="stageOptions" data-vfield="stage" value="' + esc(v.stage) + '" placeholder="SD, DD, CD, Budgetary, Final…"></div>' +
         '</div>' +
+        '<div class="field"><label>Phase (SD, DD, CD…)</label><input type="text" list="stageOptions" data-vfield="stage" value="' + esc(v.stage) + '" placeholder="SD, DD, CD, Budgetary, Final…"></div>' +
         '<div class="field"><label>Description</label><input type="text" data-vfield="description" value="' + esc(v.description) + '" placeholder="e.g. Client requested revised pricing — shows on calendar/tile"></div>' +
         (activeEstimateVersion > 0 ?
           '<div class="field" style="max-width:200px;"><label>Due date (this version)</label><input type="date" data-vfield="dueDate" value="' + esc(v.dueDate) + '"></div>'
@@ -2951,7 +3114,7 @@
 
       '<p class="section-title" style="margin-top:16px;">Billing schedule</p>' +
       '<div id="billingList">' + billingListHtml(c) + '</div>' +
-      '<button class="add-row-btn" id="addBillingBtn">+ Add billing month</button>' +
+      '<button class="add-row-btn" id="addBillingBtn">+ Add billing item</button>' +
 
       '<p class="section-title" style="margin-top:20px;">AP contact info</p>' +
       apContactHtml(c) +
@@ -2967,12 +3130,13 @@
   }
 
   function billingListHtml(c){
-    if(!c.pm.billing.length) return '<div class="note-empty">No billing months recorded yet.</div>';
+    if(!c.pm.billing.length) return '<div class="note-empty">No billing items recorded yet.</div>';
     return c.pm.billing.map(function(b, i){
       return '<div class="subcard" data-row-index="' + i + '" style="padding:8px 10px;">' +
         '<div class="inline-row">' +
           '<span class="badge">' + (i+1) + '</span>' +
-          '<input type="text" class="compact-input" style="flex:2;min-width:100px;" data-field="month" value="' + esc(b.month) + '" placeholder="e.g. May 2026">' +
+          '<input type="text" class="compact-input" style="flex:2;min-width:100px;" data-field="month" value="' + esc(b.month) + '" placeholder="Description">' +
+          '<input type="date" class="compact-input" style="flex:0 0 150px;" data-field="date" value="' + esc(b.date||"") + '" title="Billing date">' +
           '<input type="number" min="0" max="100" class="compact-input" style="flex:0 0 64px;" data-field="percent" value="' + Number(b.percent||0) + '">' +
           '<span style="font-size:12px;color:var(--ink-soft);">% billable</span>' +
           '<button class="btn small primary" data-save-billing="' + i + '">💾 Save</button>' +
@@ -2982,11 +3146,22 @@
     }).join("");
   }
 
+  var editingNoteIdx = -1;
   function notesListHtml(c){
     if(!c.pm.notes.length) return '<div class="note-empty">No notes yet.</div>';
-    return c.pm.notes.slice().reverse().map(function(n){
-      return '<div class="note-item">' + esc(n.text) +
-        '<div class="meta">' + esc(n.user || "Unknown") + ' — ' + new Date(n.timestamp).toLocaleString() + '</div></div>';
+    var last = c.pm.notes.length - 1;
+    return c.pm.notes.slice().reverse().map(function(n, ri){
+      var i = last - ri;
+      var meta = esc(n.user || "Unknown") + ' — ' + new Date(n.timestamp).toLocaleString() +
+        (n.editedAt ? ' · edited by ' + esc(n.editedBy || "Unknown") + ' ' + new Date(n.editedAt).toLocaleString() : '');
+      if(i === editingNoteIdx){
+        return '<div class="note-item"><textarea id="editNoteText" style="min-height:70px;">' + esc(n.text) + '</textarea>' +
+          '<div class="inline-row" style="margin-top:6px;"><button class="btn small primary" id="saveNoteEditBtn" data-note="' + i + '">💾 Save</button>' +
+          '<button class="btn small" id="cancelNoteEditBtn">Cancel</button></div>' +
+          '<div class="meta">' + meta + '</div></div>';
+      }
+      return '<div class="note-item"><div style="white-space:pre-wrap;">' + esc(n.text) + '</div>' +
+        '<div class="meta">' + meta + ' · <a href="#" class="edit-note-link" data-edit-note="' + i + '">✏️ Edit</a></div></div>';
     }).join("");
   }
 
@@ -3174,7 +3349,8 @@
     var addVersionBtn = host.querySelector("#addVersionBtn");
     if(addVersionBtn){
       addVersionBtn.addEventListener("click", function(){
-        c.estimateVersions.push({id: uid(), title:"", estimator:"", timestamp:null, stage:"", dueDate:"", description:"", materialPrice:0, laborPrice:0, tax:0, laborHours:0});
+        c.estimateVersions.push({id: uid(), title:"", estimator:"", timestamp:null, stage:"", status:"in_progress", dueDate:"", description:"", materialPrice:0, laborPrice:0, tax:0, laborHours:0});
+        syncEstimatingStage(c);
         activeEstimateVersion = c.estimateVersions.length - 1;
         saveCards();
         renderDetail();
@@ -3186,6 +3362,7 @@
         if(c.estimateVersions.length <= 1) return;
         c.estimateVersions.splice(activeEstimateVersion, 1);
         activeEstimateVersion = Math.max(0, activeEstimateVersion - 1);
+        syncEstimatingStage(c);
         saveCards();
         renderDetail();
       });
@@ -3198,12 +3375,13 @@
         else if(el.type === "number") val = el.value === "" ? 0 : Number(el.value);
         else val = el.value;
         c.estimateVersions[activeEstimateVersion][field] = val;
+        if(field === "status") syncEstimatingStage(c);
         saveCards();
         if(field === "materialPrice" || field === "laborPrice" || field === "tax"){
           updateSummaryBar();
-          renderBoard();
         }
-        renderDetail();
+        renderBoard();
+        renderDetailKeepFocus();
       });
     });
 
@@ -3213,6 +3391,9 @@
       markBtn.addEventListener("click", function(){
         c.estimateComplete.completedAt = new Date().toISOString();
         c.estimateComplete.alertSent = true;
+        c.estimateVersions[c.estimateVersions.length - 1].status = "complete";
+        syncEstimatingStage(c);
+        renderBoard();
         saveCards();
         pushAlert(c.id, c.projectName, "Estimate complete for " + c.projectName + " (" + c.id + ") — notify " + (c.salesperson || "salesperson"), c.salesperson);
         toast("Alert sent");
@@ -3306,7 +3487,7 @@
         var i = Number(el.closest("[data-row-index]").dataset.rowIndex);
         c.projectCreated.links[i][el.dataset.field] = el.value;
         saveCards();
-        renderDetail();
+        renderDetailKeepFocus();
       });
     });
     host.querySelectorAll("[data-remove-link]").forEach(function(el){
@@ -3331,7 +3512,7 @@
         var i = Number(el.closest("[data-row-index]").dataset.rowIndex);
         c.pm.links[i][el.dataset.field] = el.value;
         saveCards();
-        renderDetail();
+        renderDetailKeepFocus();
       });
     });
     host.querySelectorAll("[data-remove-pmlink]").forEach(function(el){
@@ -3418,7 +3599,7 @@
     var addBilling = host.querySelector("#addBillingBtn");
     if(addBilling){
       addBilling.addEventListener("click", function(){
-        c.pm.billing.push({month:"", percent:0});
+        c.pm.billing.push({month:"", date:"", percent:0});
         saveCards();
         renderDetail();
       });
@@ -3429,7 +3610,7 @@
         var row = btn.closest(".subcard");
         Object.assign(c.pm.billing[i], readRow(row, ["percent"]));
         saveCards();
-        toast("Billing month saved");
+        toast("Billing item saved");
       });
     });
     host.querySelectorAll("[data-remove-billing]").forEach(function(el){
@@ -3452,6 +3633,26 @@
         toast("Note saved");
         renderDetail();
       });
+    }
+
+    // Edit PM notes
+    host.querySelectorAll("[data-edit-note]").forEach(function(a){
+      a.addEventListener("click", function(e){ e.preventDefault(); editingNoteIdx = Number(a.dataset.editNote); renderDetail(); });
+    });
+    var saveNoteEdit = host.querySelector("#saveNoteEditBtn");
+    if(saveNoteEdit){
+      var eta = host.querySelector("#editNoteText"); if(eta) eta.focus();
+      saveNoteEdit.addEventListener("click", function(){
+        var n = c.pm.notes[Number(saveNoteEdit.dataset.note)];
+        var text = host.querySelector("#editNoteText").value.trim();
+        if(!text){ toast("A note can't be empty"); return; }
+        if(n && text !== n.text){
+          n.text = text; n.editedAt = new Date().toISOString(); n.editedBy = getUser() || "Unknown";
+          saveCards(); toast("Note updated");
+        }
+        editingNoteIdx = -1; renderDetail();
+      });
+      host.querySelector("#cancelNoteEditBtn").addEventListener("click", function(){ editingNoteIdx = -1; renderDetail(); });
     }
 
     // Bid instructions (Overview tab) — same save-on-click log pattern as PM notes
@@ -3615,6 +3816,7 @@
   function showApp(){
     document.getElementById("loginScreen").style.display = "none";
     document.getElementById("appHeader").style.display = "flex";
+    setTimeout(syncTopbarHeight, 0); setTimeout(syncTopbarHeight, 300);
     document.getElementById("appFooter").style.display = "flex";
     document.getElementById("board").style.display = "flex";
   }
