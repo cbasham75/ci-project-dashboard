@@ -509,10 +509,9 @@
     <button class="btn ghost small" id="serviceCalBtn">🛠️ Service Calendar</button>
     <button class="btn ghost small" id="archiveBtn">🗄️ On Hold / Lost / Archive</button>
     <button class="btn ghost small" id="reportsBtn">📊 Reports</button>
-    <button class="btn ghost small" id="exportBtn">Export JSON</button>
-    <button class="btn ghost small" id="importBtn">Import JSON</button>
     <button class="btn ghost small" id="libraryBtn">📚 Library</button>
     <button class="btn ghost small" id="todoBtn">✅ My To-Do <span id="todoCount" style="font-weight:700;"></span></button>
+    <button class="btn ghost small" id="settingsBtn" title="Site settings" aria-label="Site settings">⚙️</button>
     <input type="file" id="importFile" accept="application/json" style="display:none;">
   </div>
 </header>
@@ -634,6 +633,46 @@
 <!-- Detail Modal -->
 <div class="overlay" id="detailOverlay">
   <div class="modal wide" id="detailModal"></div>
+</div>
+
+<!-- Quick-add company (sits above the open card) -->
+<div class="overlay" id="quickCompanyOverlay" style="z-index:60;">
+  <div class="modal" id="quickCompanyModal"></div>
+</div>
+
+<!-- Site Settings -->
+<div class="overlay" id="settingsOverlay" style="z-index:70;">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h2>⚙️ Site settings</h2><div class="sub">Applies to the whole site, not just your account</div></div>
+      <button class="close-x" data-close="settingsOverlay">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="settingsGate">
+        <div class="field"><label>Settings password</label><input type="password" id="st_gatePw" autocomplete="off"></div>
+        <div id="st_gateErr" class="login-error" style="display:none;">Incorrect password.</div>
+        <button class="btn primary" id="st_unlockBtn">Unlock</button>
+      </div>
+      <div id="settingsPanel" style="display:none;">
+        <p class="section-title">Data backup</p>
+        <div class="note-empty" style="margin-bottom:8px;">Export downloads every card and alert as a JSON file. Import replaces all current cards with the contents of a file.</div>
+        <div class="inline-row" style="margin-bottom:18px;">
+          <button class="btn small" id="exportBtn">⬇ Export JSON</button>
+          <button class="btn small" id="importBtn">⬆ Import JSON</button>
+        </div>
+        <p class="section-title">Settings password</p>
+        <div class="field"><label>Current settings password</label><input type="password" id="st_curPw" autocomplete="off"></div>
+        <div class="row2">
+          <div class="field"><label>New password</label><input type="password" id="st_newPw" autocomplete="new-password"></div>
+          <div class="field"><label>Confirm new password</label><input type="password" id="st_newPw2" autocomplete="new-password"></div>
+        </div>
+        <div id="st_pwErr" class="login-error" style="display:none;"></div>
+        <button class="btn small primary" id="st_savePwBtn">Update settings password</button>
+        <div id="settingsExtra"></div>
+        <div class="note-empty" style="margin-top:18px;">More site-wide options will appear here as they are added.</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="toast-wrap" id="toastWrap"></div>
@@ -810,6 +849,7 @@
       }
       if(typeof v.dueDate !== "string") v.dueDate = "";
       if(typeof v.description !== "string") v.description = "";
+      if(!Array.isArray(v.notes)) v.notes = [];
       if(typeof v.materialPrice !== "number") v.materialPrice = 0;
       if(typeof v.laborPrice !== "number") v.laborPrice = 0;
       if(typeof v.tax !== "number") v.tax = 0;
@@ -835,15 +875,12 @@
         if(typeof co.coDueDate !== "string") co.coDueDate = "";
         if(typeof co.approved !== "boolean") co.approved = false;
         if(typeof co.approvedBy !== "string") co.approvedBy = "";
-        if(typeof co.materialPrice !== "number") co.materialPrice = 0;
-        if(typeof co.laborPrice !== "number") co.laborPrice = 0;
-        if(typeof co.tax !== "number") co.tax = 0;
-        if(typeof co.laborHours !== "number") co.laborHours = 0;
-        // Amount has been retired in favor of Material/Labor/Tax — carry forward any old
-        // Amount-only value so existing change orders don't silently drop to $0.
-        if(!co.materialPrice && !co.laborPrice && !co.tax && co.amount){
-          co.materialPrice = Number(co.amount) || 0;
-        }
+        // Change orders carry a single Amount. Fold any old Material/Labor/Tax into it once.
+        co.amount = Number(co.amount) || 0;
+        var legacyCo = (Number(co.materialPrice)||0) + (Number(co.laborPrice)||0) + (Number(co.tax)||0);
+        if(!co.amount && legacyCo) co.amount = legacyCo;
+        delete co.materialPrice; delete co.laborPrice; delete co.tax; delete co.laborHours;
+        if(!Array.isArray(co.notes)) co.notes = [];
         if(co.timestamp === undefined){
           co.timestamp = co.date ? new Date(co.date).toISOString() : null;
         }
@@ -964,7 +1001,7 @@
   function totalValue(card){
     var base = Number(card.contractAmount) || 0;
     var coTotal = (card.changeOrders || []).reduce(function(sum, co){
-      return sum + (Number(co.materialPrice)||0) + (Number(co.laborPrice)||0) + (Number(co.tax)||0);
+      return sum + (Number(co.amount)||0);
     }, 0);
     return base + coTotal;
   }
@@ -1811,19 +1848,32 @@
     }
     return '<select data-path="' + path + '">' + opts + '</select>';
   }
-  function companySummaryHtml(co){
-    function row(label, val){ return val ? '<div class="co-row"><span>' + label + '</span><strong>' + esc(val) + '</strong></div>' : ''; }
+  function sumRow(label, val){ return val ? '<div class="co-row"><span>' + label + '</span><strong>' + esc(val) + '</strong></div>' : ''; }
+  function sumFlags(co){
     function yn(label, v){ return v ? '<span class="badge">' + label + '</span> ' : ''; }
+    var h = yn("Tax exempt", co.taxExempt) + yn("W-9 on file", co.w9OnFile) + yn("COI required", co.coiRequired) +
+      yn("Lien waiver required", co.lienWaiverRequired) + yn("Certified payroll", co.certifiedPayroll);
+    return h ? '<div style="margin-top:6px;">' + h + '</div>' : '';
+  }
+  // Everything about the company EXCEPT accounts-payable details (those live on the Billing tab).
+  function companySummaryHtml(co){
     var addr = [co.address, [co.city, co.state].filter(Boolean).join(", "), co.zip].filter(Boolean).join(" · ");
-    return row("Type", co.type) + row("Address", addr) + row("Main phone", co.mainPhone) + row("Website", co.website) +
-      row("Contact", [co.contactName, co.contactTitle].filter(Boolean).join(", ")) + row("Contact phone", co.contactPhone) + row("Contact email", co.contactEmail) +
-      row("AP contact", co.apName) + row("AP phone", co.apPhone) + row("AP email", co.apEmail) +
-      row("Invoice method", co.invoiceMethod) + row("Portal", co.portalUrl) + row("Payment terms", co.paymentTerms) +
-      row("Retainage", co.retainage) + row("Our vendor #", co.vendorNumber) + row("AP notes", co.apNotes) +
-      row("AR / collections contact", co.arContact) + row("Credit status", co.creditStatus) +
-      '<div style="margin-top:6px;">' + yn("Tax exempt", co.taxExempt) + yn("W-9 on file", co.w9OnFile) + yn("COI required", co.coiRequired) +
-      yn("Lien waiver required", co.lienWaiverRequired) + yn("Certified payroll", co.certifiedPayroll) + '</div>' +
-      row("Notes", co.notes);
+    return sumRow("Type", co.type) + sumRow("Address", addr) + sumRow("Main phone", co.mainPhone) + sumRow("Website", co.website) +
+      sumRow("Contact", [co.contactName, co.contactTitle].filter(Boolean).join(", ")) + sumRow("Contact phone", co.contactPhone) + sumRow("Contact email", co.contactEmail) +
+      sumFlags(co) + sumRow("Notes", co.notes);
+  }
+  function companyApSummaryHtml(co){
+    return sumRow("AP contact", co.apName) + sumRow("AP phone", co.apPhone) + sumRow("AP email", co.apEmail) +
+      sumRow("Invoice method", co.invoiceMethod) + sumRow("Portal", co.portalUrl) + sumRow("Payment terms", co.paymentTerms) +
+      sumRow("Retainage", co.retainage) + sumRow("Our vendor #", co.vendorNumber) + sumRow("AP notes", co.apNotes) +
+      sumRow("AR / collections contact", co.arContact) + sumRow("Credit status", co.creditStatus) + sumFlags(co);
+  }
+  function autofillApFromLibrary(c){
+    var co = findCompanyByName(c.projectCreated.winningContractor);
+    var ap = c.pm.apContact || {};
+    if(co && !(ap.name || ap.email || ap.phone || ap.notes)){
+      c.pm.apContact = {name:co.apName||"", email:co.apEmail||"", phone:co.apPhone||"", notes:co.apNotes||""};
+    }
   }
   function winningCompanyBlockHtml(c){
     var co = findCompanyByName(c.projectCreated.winningContractor);
@@ -2235,10 +2285,10 @@
     rows = rows.filter(function(r){
       return matchTri(r.co.approved, f.approved) && matchTri(r.co.sent, f.sent) && matchTri(r.co.billed, f.billed);
     });
-    var total = rows.reduce(function(s,r){ return s + (Number(r.co.materialPrice)||0) + (Number(r.co.laborPrice)||0) + (Number(r.co.tax)||0); }, 0);
+    var total = rows.reduce(function(s,r){ return s + (Number(r.co.amount)||0); }, 0);
 
     var body = rows.map(function(r){
-      var val = (Number(r.co.materialPrice)||0) + (Number(r.co.laborPrice)||0) + (Number(r.co.tax)||0);
+      var val = Number(r.co.amount)||0;
       return '<tr data-open-card="' + r.card.id + '">' +
         '<td><strong>' + esc(r.card.projectName||"Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(r.card.id) + ' · ' + esc(r.co.num) + '</div></td>' +
         '<td>' + esc(r.co.description||"—") + '</td>' +
@@ -2359,7 +2409,7 @@
         if(!calVisible(c)) return;
         (c.changeOrders || []).forEach(function(co){
           if(co.coDueDate === dateStr){
-            var coValue = (Number(co.materialPrice)||0) + (Number(co.laborPrice)||0) + (Number(co.tax)||0);
+            var coValue = Number(co.amount)||0;
             var fulfilled = !!(co.description && co.description.trim() && coValue > 0);
             var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · " + esc(co.num);
             bubbles += '<button type="button" class="cal-bubble ' + plainBubbleClass(c, fulfilled) + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
@@ -2643,6 +2693,7 @@
         else if(el.type === "number") val = (el.value === "" ? 0 : Number(el.value));
         else val = el.value;
         setPath(c, el.dataset.path, val);
+        if(el.dataset.path === "projectCreated.winningContractor") autofillApFromLibrary(c);
         saveCards();
         // light re-render for things that affect summary/board without losing focus on text fields
         if(el.dataset.path === "estimatingStage" || el.dataset.path === "projectCreated.winningContractor"){
@@ -2690,7 +2741,7 @@
   }
 
   function summaryBarHtml(c){
-    var coTotal = (c.changeOrders||[]).reduce(function(s,co){ return s+(Number(co.materialPrice)||0)+(Number(co.laborPrice)||0)+(Number(co.tax)||0); },0);
+    var coTotal = (c.changeOrders||[]).reduce(function(s,co){ return s+(Number(co.amount)||0); },0);
     return '<div>Contract amount<strong>' + money(c.contractAmount) + '</strong></div>' +
       '<div>Change orders<strong>' + money(coTotal) + '</strong></div>' +
       '<div>Total value<strong>' + money(totalValue(c)) + '</strong></div>' +
@@ -2789,7 +2840,8 @@
       {key:"overview", label:"Overview"},
       {key:"estimating", label:"Estimating"},
       {key:"project", label:"Project Setup"},
-      {key:"pm", label:"PM & Billing"},
+      {key:"pm", label:"PM"},
+      {key:"billing", label:"Billing"},
       {key:"co", label:"Change Orders"},
       {key:"closeout", label:"Closeout"},
       {key:"hla", label:"H/L/A"}
@@ -2821,6 +2873,7 @@
     if(tab === "estimating") return estimatingPanel(c);
     if(tab === "project") return projectPanel(c);
     if(tab === "pm") return pmPanel(c);
+    if(tab === "billing") return billingPanel(c);
     if(tab === "co") return coPanel(c);
     if(tab === "closeout") return closeoutPanel(c);
     if(tab === "hla") return hlaPanel(c);
@@ -2846,7 +2899,8 @@
       '<div class="field"><label>Project customer</label><input type="text" data-path="projectCustomer" value="' + esc(c.projectCustomer) + '"></div>' +
       '<div class="field"><label>Contractor(s)</label>' +
         '<div id="directCustomersList">' + directCustomersHtml(c) + '</div>' +
-        '<button class="add-row-btn" id="addDirectCustomerBtnDetail">+ Add contractor</button>' +
+        '<button class="add-row-btn" id="addDirectCustomerBtnDetail">+ Add contractor</button> ' +
+        '<button class="add-row-btn" id="quickCoDcBtn" title="Add a new company to the Library and use it here">＋ New company in Library</button>' +
       '</div>' +
       '<div class="field"><label>Divisions</label><div class="checks">' +
         '<label class="checkline"><input type="checkbox" data-path="divisions.scs" ' + (c.divisions.scs?"checked":"") + '> SCS</label>' +
@@ -2940,7 +2994,9 @@
         '<div class="field" style="max-width:220px;"><label>Estimate total</label>' +
           '<div class="mono" style="font-size:16px;font-weight:700;padding:8px 0;">' + money(estimateTotal(c)) + '</div>' +
         '</div>' +
-        (versions.length > 1 ? '<button class="miniremove" id="removeVersionBtn">Remove this version</button>' : '') +
+        '<p style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:14px 0 6px;">Estimator notes (V' + (activeEstimateVersion+1) + ')</p>' +
+        noteLogHtml(v.notes, "v:" + activeEstimateVersion, "Add an estimator note…") +
+        (versions.length > 1 ? '<div style="margin-top:10px;"><button class="miniremove" id="removeVersionBtn">Remove this version</button></div>' : '') +
       '</div>' +
       '<datalist id="stageOptions"><option value="SD"><option value="DD"><option value="CD"><option value="Budgetary"><option value="Final"><option value="Reactivated"></datalist>' +
 
@@ -2973,6 +3029,7 @@
         '<div class="field"><label>Winning contractor / customer <span style="font-weight:400;">(from Library)</span></label>' + companySelectHtml('projectCreated.winningContractor', pc.winningContractor) + '</div>' +
         '<div class="field"><label>Contract amount</label><input type="text" class="money-input" data-path="contractAmount" value="' + money(c.contractAmount||0) + '"></div>' +
       '</div>' +
+      '<div class="field" style="margin-top:-6px;"><button type="button" class="add-row-btn" id="quickCoWinBtn" title="Add a new company to the Library and select it here">＋ New company in Library</button></div>' +
       winningCompanyBlockHtml(c) +
       '<div class="field"><label>Project manager</label><select data-path="projectCreated.pmName">' + teamMemberOptionsHtml(pc.pmName) + '</select></div>' +
 
@@ -3112,13 +3169,6 @@
       '<p class="section-title">Progress</p>' +
       '<div class="field"><label>Amount complete (%)</label><input type="number" min="0" max="100" data-path="pm.percentComplete" value="' + Number(c.pm.percentComplete||0) + '"></div>' +
 
-      '<p class="section-title" style="margin-top:16px;">Billing schedule</p>' +
-      '<div id="billingList">' + billingListHtml(c) + '</div>' +
-      '<button class="add-row-btn" id="addBillingBtn">+ Add billing item</button>' +
-
-      '<p class="section-title" style="margin-top:20px;">AP contact info</p>' +
-      apContactHtml(c) +
-
       '<p class="section-title" style="margin-top:20px;">Links</p>' +
       '<div id="pmLinksList">' + pmLinksListHtml(c) + '</div>' +
       '<button class="add-row-btn" id="addPmLinkBtn">+ Add link</button>' +
@@ -3127,6 +3177,21 @@
       '<div class="notes-list" id="notesList">' + notesListHtml(c) + '</div>' +
       '<div class="field"><textarea id="newNoteText" placeholder="Add a note…"></textarea></div>' +
       '<button class="btn small primary" id="addNoteBtn">💾 Save note</button>';
+  }
+
+  function billingPanel(c){
+    var co = findCompanyByName(c.projectCreated.winningContractor);
+    return '' +
+      '<p class="section-title">Billing schedule</p>' +
+      '<div id="billingList">' + billingListHtml(c) + '</div>' +
+      '<button class="add-row-btn" id="addBillingBtn">+ Add billing item</button>' +
+
+      '<p class="section-title" style="margin-top:20px;">Accounts payable — ' + (co ? esc(co.name) : 'no winning contractor selected') + '</p>' +
+      (co ? '<div class="subcard co-summary">' + (companyApSummaryHtml(co) || '<div class="note-empty">No AP info on file for this company in the Library.</div>') + '</div>'
+          : '<div class="note-empty">Pick a winning contractor on the Project Setup tab to pull its AP info from the Library.</div>') +
+
+      '<p class="section-title" style="margin-top:20px;">AP contact for this project</p>' +
+      apContactHtml(c);
   }
 
   function billingListHtml(c){
@@ -3144,6 +3209,34 @@
         '</div>' +
       '</div>';
     }).join("");
+  }
+
+  // Generic timestamped, editable note log (estimator notes on versions and change orders).
+  var noteEdit = null; // {key, idx}
+  function noteTarget(c, key){
+    var p = key.split(":"), o = p[0] === "v" ? c.estimateVersions[Number(p[1])] : c.changeOrders[Number(p[1])];
+    if(!o) return null;
+    if(!Array.isArray(o.notes)) o.notes = [];
+    return o.notes;
+  }
+  function noteLogHtml(list, key, placeholder){
+    list = list || [];
+    var last = list.length - 1;
+    var items = !list.length ? '<div class="note-empty">No notes yet.</div>' : list.slice().reverse().map(function(n, ri){
+      var i = last - ri;
+      var meta = esc(n.user || "Unknown") + ' — ' + new Date(n.timestamp).toLocaleString() +
+        (n.editedAt ? ' · edited by ' + esc(n.editedBy || "Unknown") + ' ' + new Date(n.editedAt).toLocaleString() : '');
+      if(noteEdit && noteEdit.key === key && noteEdit.idx === i){
+        return '<div class="note-item"><textarea data-nl-edit-text="' + key + '" style="min-height:70px;">' + esc(n.text) + '</textarea>' +
+          '<div class="inline-row" style="margin-top:6px;"><button type="button" class="btn small primary" data-nl-save="' + key + '" data-idx="' + i + '">💾 Save</button>' +
+          '<button type="button" class="btn small" data-nl-cancel="1">Cancel</button></div><div class="meta">' + meta + '</div></div>';
+      }
+      return '<div class="note-item"><div style="white-space:pre-wrap;">' + esc(n.text) + '</div>' +
+        '<div class="meta">' + meta + ' · <a href="#" data-nl-edit="' + key + '" data-idx="' + i + '">✏️ Edit</a></div></div>';
+    }).join("");
+    return '<div class="notes-list">' + items + '</div>' +
+      '<div class="field"><textarea data-nl-text="' + key + '" placeholder="' + placeholder + '"></textarea></div>' +
+      '<button type="button" class="btn small primary" data-nl-add="' + key + '">💾 Save note</button>';
   }
 
   var editingNoteIdx = -1;
@@ -3176,7 +3269,7 @@
     if(!c.changeOrders.length) return '<div class="note-empty">No change orders yet.</div>';
     return c.changeOrders.map(function(co, i){
       var collapsed = !!collapsedCO[i];
-      var coValue = (Number(co.materialPrice)||0) + (Number(co.laborPrice)||0) + (Number(co.tax)||0);
+      var coValue = Number(co.amount)||0;
       var head = '<div class="subhead"><span class="badge">' + esc(co.num) + '</span>' +
         '<div style="display:flex;gap:8px;align-items:center;">' +
           '<button type="button" class="btn small" data-toggle-co="' + i + '">' + (collapsed ? "▸ Expand" : "▾ Collapse") + '</button>' +
@@ -3206,12 +3299,9 @@
         '<div class="co-details-block">' +
           '<p class="co-section-title">CO Details</p>' +
           '<div class="field"><label>Description</label><input type="text" data-field="description" value="' + esc(co.description) + '" placeholder="e.g. Add AV cabling, install WAPs"></div>' +
-          '<div class="inline-row">' +
-            '<div class="field" style="flex:1 1 90px;"><label>Material</label><input type="text" class="money-input" data-field="materialPrice" value="' + money(co.materialPrice||0) + '"></div>' +
-            '<div class="field" style="flex:1 1 90px;"><label>Labor</label><input type="text" class="money-input" data-field="laborPrice" value="' + money(co.laborPrice||0) + '"></div>' +
-            '<div class="field" style="flex:1 1 80px;"><label>Tax</label><input type="text" class="money-input" data-field="tax" value="' + money(co.tax||0) + '"></div>' +
-            '<div class="field" style="flex:1 1 70px;"><label>Hours</label><input type="number" step="0.5" data-field="laborHours" value="' + Number(co.laborHours||0) + '"></div>' +
-          '</div>' +
+          '<div class="field" style="max-width:220px;"><label>Change order amount</label><input type="text" class="money-input" data-field="amount" value="' + money(co.amount||0) + '"></div>' +
+          '<p style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:6px 0;">Estimator notes</p>' +
+          noteLogHtml(co.notes, "co:" + i, "Add an estimator note…") +
           '<div class="inline-row" style="margin-top:6px;">' +
             '<div class="field" style="flex:1 1 160px;"><label>Sent to</label><input type="text" data-field="sentTo" value="' + esc(co.sentTo) + '"></div>' +
             '<label class="checkline" style="padding-bottom:9px;"><input type="checkbox" data-field="sent" data-co-checkbox="' + i + '" ' + (co.sent?"checked":"") + '> Sent</label>' +
@@ -3655,6 +3745,58 @@
       host.querySelector("#cancelNoteEditBtn").addEventListener("click", function(){ editingNoteIdx = -1; renderDetail(); });
     }
 
+    // Estimator notes (versions + change orders)
+    host.querySelectorAll("[data-nl-add]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var key = btn.dataset.nlAdd, list = noteTarget(c, key);
+        var ta = host.querySelector('[data-nl-text="' + key + '"]');
+        var text = ta ? ta.value.trim() : "";
+        if(!list || !text) return;
+        if(key.indexOf("co:") === 0){
+          var blk = btn.closest(".co-details-block");
+          if(blk) Object.assign(c.changeOrders[Number(key.split(":")[1])], readRow(blk, ["amount"]));
+        }
+        list.push({text:text, user:getUser() || "Unknown", timestamp:new Date().toISOString()});
+        saveCards(); updateSummaryBar(); renderBoard();
+        toast("Note saved");
+        renderDetail();
+      });
+    });
+    host.querySelectorAll("[data-nl-edit]").forEach(function(a){
+      a.addEventListener("click", function(e){ e.preventDefault(); noteEdit = {key:a.dataset.nlEdit, idx:Number(a.dataset.idx)}; renderDetail(); });
+    });
+    host.querySelectorAll("[data-nl-save]").forEach(function(btn){
+      var key = btn.dataset.nlSave;
+      var eta = host.querySelector('[data-nl-edit-text="' + key + '"]'); if(eta) eta.focus();
+      btn.addEventListener("click", function(){
+        var list = noteTarget(c, key), n = list && list[Number(btn.dataset.idx)];
+        var text = eta ? eta.value.trim() : "";
+        if(!text){ toast("A note can't be empty"); return; }
+        if(n && text !== n.text){ n.text = text; n.editedAt = new Date().toISOString(); n.editedBy = getUser() || "Unknown"; saveCards(); toast("Note updated"); }
+        noteEdit = null; renderDetail();
+      });
+    });
+    host.querySelectorAll("[data-nl-cancel]").forEach(function(btn){
+      btn.addEventListener("click", function(){ noteEdit = null; renderDetail(); });
+    });
+
+    // Quick-add a company to the Library without leaving the card
+    var qWin = host.querySelector("#quickCoWinBtn");
+    if(qWin) qWin.addEventListener("click", function(){
+      openQuickCompany(function(name){
+        c.projectCreated.winningContractor = name;
+        autofillApFromLibrary(c);
+        saveCards(); renderBoard(); renderDetail();
+      });
+    });
+    var qDc = host.querySelector("#quickCoDcBtn");
+    if(qDc) qDc.addEventListener("click", function(){
+      openQuickCompany(function(name){
+        c.directCustomers.push({name:name});
+        saveCards(); renderBoard(); renderDetail();
+      });
+    });
+
     // Bid instructions (Overview tab) — same save-on-click log pattern as PM notes
     var addBidInstruction = host.querySelector("#addBidInstructionBtn");
     if(addBidInstruction){
@@ -3674,7 +3816,7 @@
     if(addCo){
       addCo.addEventListener("click", function(){
         var n = c.changeOrders.length + 1;
-        c.changeOrders.push({num:"CO" + n, coInstructions:"", coDueDate:"", description:"", materialPrice:0, laborPrice:0, tax:0, laborHours:0, timestamp:null, sent:false, sentTo:"", billed:false, approved:false, approvedBy:""});
+        c.changeOrders.push({num:"CO" + n, coInstructions:"", coDueDate:"", description:"", amount:0, notes:[], timestamp:null, sent:false, sentTo:"", billed:false, approved:false, approvedBy:""});
         saveCards();
         renderBoard();
         renderDetail();
@@ -3715,7 +3857,7 @@
       btn.addEventListener("click", function(){
         var i = Number(btn.dataset.saveCoDetails);
         var block = btn.closest(".co-details-block");
-        Object.assign(c.changeOrders[i], readRow(block, ["materialPrice","laborPrice","tax","laborHours"]));
+        Object.assign(c.changeOrders[i], readRow(block, ["amount"]));
         saveCards();
         updateSummaryBar();
         renderBoard();
@@ -3734,6 +3876,112 @@
       });
     });
   }
+
+  /* ---------------- Quick-add company ---------------- */
+  var quickCompanyCb = null;
+  function openQuickCompany(cb){
+    quickCompanyCb = cb;
+    var m = document.getElementById("quickCompanyModal");
+    function f(l,k){ return '<div class="field"><label>' + l + '</label><input type="text" data-qc="' + k + '"></div>'; }
+    m.innerHTML =
+      '<div class="modal-head"><div><h2>New company</h2><div class="sub">Saved to the Library and filled into the card you were on. Add the rest later from the Library.</div></div>' +
+      '<button class="close-x" id="qc_x">✕</button></div>' +
+      '<div class="modal-body">' +
+        '<div class="row2">' + f("Company name","name") +
+          '<div class="field"><label>Type</label><select data-qc="type">' +
+            ["Customer","Contractor","Customer & Contractor","Vendor / Other"].map(function(t){ return '<option' + (t==="Contractor"?" selected":"") + '>' + t + '</option>'; }).join("") +
+          '</select></div></div>' +
+        f("Street address","address") +
+        '<div class="row2">' + f("City","city") + '<div class="row2">' + f("State","state") + f("ZIP","zip") + '</div></div>' +
+        '<div class="row2">' + f("Main phone","mainPhone") + f("Website","website") + '</div>' +
+        '<p class="section-title" style="margin-top:12px;">Primary contact</p>' +
+        '<div class="row2">' + f("Name","contactName") + f("Title","contactTitle") + '</div>' +
+        '<div class="row2">' + f("Phone","contactPhone") + f("Email","contactEmail") + '</div>' +
+        '<p class="section-title" style="margin-top:12px;">AP</p>' +
+        '<div class="row2">' + f("AP contact name","apName") + f("AP phone","apPhone") + '</div>' +
+        f("AP email","apEmail") +
+        '<div class="row2">' + f("Invoice method","invoiceMethod") + f("Payment terms","paymentTerms") + '</div>' +
+      '</div>' +
+      '<div class="modal-foot"><button class="btn ghost" id="qc_cancel">Cancel</button><button class="btn primary" id="qc_save">Save to Library &amp; use</button></div>';
+    function close(){ closeOverlay("quickCompanyOverlay"); }
+    m.querySelector("#qc_x").addEventListener("click", close);
+    m.querySelector("#qc_cancel").addEventListener("click", close);
+    m.querySelector("#qc_save").addEventListener("click", function(){
+      var vals = {};
+      m.querySelectorAll("[data-qc]").forEach(function(el){ vals[el.dataset.qc] = el.value.trim(); });
+      if(!vals.name){ toast("Enter a company name"); return; }
+      var existing = findCompanyByName(vals.name);
+      if(existing){
+        toast(existing.name + " is already in the Library — using it");
+      } else {
+        existing = blankCompany();
+        Object.assign(existing, vals);
+        libraryCompanies.push(existing);
+        saveCompanyRemote(existing).then(function(res){
+          if(res && res.error) toast("Couldn't save to Library: " + res.error.message);
+        });
+        toast("Added " + existing.name + " to the Library");
+      }
+      close();
+      if(quickCompanyCb) quickCompanyCb(existing.name);
+    });
+    openOverlay("quickCompanyOverlay");
+    var first = m.querySelector('[data-qc="name"]'); if(first) first.focus();
+  }
+
+  /* ---------------- Site settings ---------------- */
+  var DEFAULT_SETTINGS_PW = "password";
+  async function pwHash(str){
+    if(window.crypto && crypto.subtle){
+      var b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(b)).map(function(x){ return x.toString(16).padStart(2,"0"); }).join("");
+    }
+    return "plain:" + str;
+  }
+  async function getSettingsPwHash(){
+    if(supabaseClient){
+      var r = await supabaseClient.from("app_settings").select("value").eq("key","settings_password").maybeSingle();
+      if(!r.error && r.data && r.data.value && r.data.value.hash) return r.data.value.hash;
+    }
+    return pwHash(DEFAULT_SETTINGS_PW);
+  }
+  function showSettingsErr(id, msg){
+    var el = document.getElementById(id);
+    el.textContent = msg; el.style.display = msg ? "block" : "none";
+  }
+  function openSettings(){
+    document.getElementById("settingsGate").style.display = "block";
+    document.getElementById("settingsPanel").style.display = "none";
+    document.getElementById("st_gatePw").value = "";
+    showSettingsErr("st_gateErr", "");
+    openOverlay("settingsOverlay");
+    document.getElementById("st_gatePw").focus();
+  }
+  async function unlockSettings(){
+    var pw = document.getElementById("st_gatePw").value;
+    var ok = false;
+    try{ ok = (await pwHash(pw)) === (await getSettingsPwHash()); }catch(e){ ok = false; }
+    if(!ok){ showSettingsErr("st_gateErr", "Incorrect password."); return; }
+    document.getElementById("settingsGate").style.display = "none";
+    document.getElementById("settingsPanel").style.display = "block";
+    ["st_curPw","st_newPw","st_newPw2"].forEach(function(id){ document.getElementById(id).value = ""; });
+    showSettingsErr("st_pwErr", "");
+  }
+  document.getElementById("settingsBtn").addEventListener("click", openSettings);
+  document.getElementById("st_unlockBtn").addEventListener("click", unlockSettings);
+  document.getElementById("st_gatePw").addEventListener("keydown", function(e){ if(e.key === "Enter") unlockSettings(); });
+  document.getElementById("st_savePwBtn").addEventListener("click", async function(){
+    var cur = document.getElementById("st_curPw").value, nw = document.getElementById("st_newPw").value, nw2 = document.getElementById("st_newPw2").value;
+    if((await pwHash(cur)) !== (await getSettingsPwHash())){ showSettingsErr("st_pwErr", "Current settings password is incorrect."); return; }
+    if(nw.length < 4){ showSettingsErr("st_pwErr", "New password must be at least 4 characters."); return; }
+    if(nw !== nw2){ showSettingsErr("st_pwErr", "New passwords don't match."); return; }
+    if(!supabaseClient){ showSettingsErr("st_pwErr", "Not connected to the database."); return; }
+    var res = await supabaseClient.from("app_settings").upsert({key:"settings_password", value:{hash: await pwHash(nw)}, updated_at:new Date().toISOString(), updated_by:getUser() || ""});
+    if(res.error){ showSettingsErr("st_pwErr", "Couldn't save: " + res.error.message); return; }
+    ["st_curPw","st_newPw","st_newPw2"].forEach(function(id){ document.getElementById(id).value = ""; });
+    showSettingsErr("st_pwErr", "");
+    toast("Settings password updated");
+  });
 
   /* ---------------- Export / Import ---------------- */
   document.getElementById("searchInput").addEventListener("input", function(e){
