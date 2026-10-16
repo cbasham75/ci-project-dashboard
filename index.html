@@ -306,6 +306,14 @@
     padding:14px 20px;border-top:1px solid var(--line-soft);
     display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;
   }
+  .dz{border:2px dashed #b9c0c4;border-radius:10px;padding:18px;text-align:center;cursor:pointer;color:var(--ink-soft);font-size:13px;margin-bottom:10px;}
+  .dz.over{background:rgba(60,120,200,.08);border-color:#3c78c8;}
+  .doc-row{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);flex-wrap:wrap;}
+  .doc-row .nm{flex:1 1 220px;min-width:0;font-weight:600;word-break:break-all;}
+  .doc-row .mt{font-size:11.5px;color:var(--ink-soft);}
+  .meter{height:8px;background:#e6e9eb;border-radius:6px;overflow:hidden;margin:4px 0;}
+  .meter>div{height:100%;background:#3c78c8;}
+  .head-actions{display:flex;gap:8px;align-items:flex-start;}
   .close-x{border:none;background:none;font-size:18px;color:var(--ink-soft);line-height:1;padding:4px;}
 
   .field{margin-bottom:13px;}
@@ -579,6 +587,14 @@
         <select id="f_salesperson"></select>
       </div>
     </div>
+    <div class="field" style="padding:0 20px;">
+      <label>Documents (optional) — plans, specs, addenda…</label>
+      <div class="inline-row">
+        <input type="file" id="f_files" multiple style="flex:1;">
+        <select id="f_fileTag" class="compact-input" style="flex:0 0 130px;"></select>
+      </div>
+      <div id="f_fileList" style="font-size:12px;color:var(--ink-soft);margin-top:4px;"></div>
+    </div>
     <div class="modal-foot">
       <button class="btn ghost" data-close="newCardOverlay">Cancel</button>
       <button class="btn primary" id="saveNewCardBtn">Create card</button>
@@ -675,9 +691,15 @@
   </div>
 </div>
 
+<div class="overlay" id="docsOverlay" style="z-index:65;">
+  <div class="modal wide" id="docsModal"></div>
+</div>
+<div id="uploadStatus" style="position:fixed;left:16px;bottom:16px;z-index:90;display:none;background:#fff;color:#222;border:1px solid #c9cfd3;border-radius:8px;padding:10px 12px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.18);max-width:320px;"></div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/dist/tus.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1631,7 +1653,9 @@
     return '<select data-sj="customer">' + opts + '</select>';
   }
 
+  var sjPending = [];
   function openServiceJob(id){
+    sjPending = [];
     var existing = id ? serviceJobs.find(function(j){ return j.id === id; }) : null;
     sjDraft = existing ? normalizeServiceJob(JSON.parse(JSON.stringify(existing))) : blankServiceJob();
     renderServiceModal();
@@ -1646,7 +1670,8 @@
     modal.innerHTML =
       '<div class="modal-head"><div><h2>' + (isNew ? "New Service Job" : esc(j.id) + " — " + esc(j.jobName || "Service Job")) + '</h2>' +
         '<div class="sub">' + (isNew ? "A service job number (SJ-YY-NNNN) is assigned automatically on save" : "Service job") + '</div></div>' +
-        '<button class="close-x" id="sjCloseX">✕</button></div>' +
+        '<div class="head-actions">' + (isNew ? '' : '<button class="btn small" id="docsHeadBtn" title="Documents for this job">📎 Documents</button>') +
+        '<button class="close-x" id="sjCloseX">✕</button></div></div>' +
       '<div class="modal-body">' +
         '<p class="section-title">Overview</p>' +
         '<div class="field"><label>Job name *</label><input type="text" data-sj="jobName" value="' + esc(j.jobName) + '"></div>' +
@@ -1658,6 +1683,7 @@
           chk("SCS","divisions.scs",j.divisions.scs) + chk("Security","divisions.security",j.divisions.security) + chk("AV","divisions.av",j.divisions.av) + chk("Demo","divisions.demo",j.divisions.demo) +
         '</div></div>' +
         '<div class="field"><label>Work requested / scope</label><textarea data-sj="description">' + esc(j.description) + '</textarea></div>' +
+        (isNew ? '<div class="field"><label>Documents (optional)</label><div class="inline-row"><input type="file" id="sjFiles" multiple style="flex:1;"><select id="sjFileTag" class="compact-input" style="flex:0 0 130px;">' + DOC_TAGS.map(function(t){ return '<option>' + t + '</option>'; }).join("") + '</select></div><div id="sjFileList" style="font-size:12px;color:var(--ink-soft);margin-top:4px;"></div></div>' : '') +
         '<div class="row2">' +
           '<div class="field"><label>Service date</label><input type="date" data-sj="serviceDate" value="' + esc(j.serviceDate) + '"></div>' +
           '<div class="field"><label>Service time</label><select data-sj="serviceTime">' + timeOptionsHtml(j.serviceTime) + '</select></div>' +
@@ -1719,16 +1745,24 @@
     });
     modal.querySelector("#sjAddContact").addEventListener("click", function(){ sjDraft.contacts.push({name:""}); renderServiceModal(); });
     modal.querySelector("#sjCloseX").addEventListener("click", function(){ closeOverlay("serviceOverlay"); });
+    var sjDocBtn = modal.querySelector("#docsHeadBtn");
+    if(sjDocBtn){ sjDocBtn.addEventListener("click", function(){ openDocs("service", j.id, j.id + " — " + (j.jobName || "Service job")); }); refreshDocBtn("service", j.id); }
+    var sjFiles = modal.querySelector("#sjFiles");
+    if(sjFiles){
+      sjFiles.addEventListener("change", function(){ sjPending = sjPending.concat(Array.from(sjFiles.files)); sjFiles.value = ""; modal.querySelector("#sjFileList").innerHTML = pendingListHtml(sjPending); });
+      modal.querySelector("#sjFileList").innerHTML = pendingListHtml(sjPending);
+    }
     modal.querySelector("#sjCancelBtn").addEventListener("click", function(){ closeOverlay("serviceOverlay"); });
     modal.querySelector("#sjSaveBtn").addEventListener("click", saveServiceJob);
     modal.querySelector("#sjWoBtn").addEventListener("click", function(){ showWorkOrder(workOrderFromService(sjDraft)); });
     var del = modal.querySelector("#sjDeleteBtn");
     if(del) del.addEventListener("click", function(){
-      if(!confirm("Delete " + sjDraft.id + " — " + (sjDraft.jobName || "this service job") + "? This can't be undone.")) return;
+      if(!confirm("Delete " + sjDraft.id + " — " + (sjDraft.jobName || "this service job") + "? This can't be undone. Its uploaded documents will be deleted too.")) return;
       var id = sjDraft.id;
       (supabaseClient ? supabaseClient.from("service_jobs").delete().eq("id", id) : Promise.resolve()).then(function(res){
         if(res && res.error){ toast("Couldn't delete — " + res.error.message); return; }
         serviceJobs = serviceJobs.filter(function(x){ return x.id !== id; });
+        purgeDocs("service", id);
         closeOverlay("serviceOverlay");
         renderBoard();
         if(document.getElementById("serviceCalView").style.display !== "none") renderServiceCalendar();
@@ -1756,6 +1790,11 @@
       renderBoard();
       if(document.getElementById("serviceCalView").style.display !== "none") renderServiceCalendar();
       toast("Saved " + job.id + " — " + job.jobName);
+      if(sjPending.length){
+        var tagEl = document.getElementById("sjFileTag");
+        uploadFiles(sjPending, "service", job.id, tagEl ? tagEl.value : "Other", "");
+        sjPending = [];
+      }
     });
   }
 
@@ -2623,6 +2662,8 @@
     document.getElementById("f_div_demo").checked = false;
     formDirectCustomers = [""];
     renderFormDirectCustomers();
+    document.getElementById("f_fileTag").innerHTML = DOC_TAGS.map(function(t){ return '<option>' + t + '</option>'; }).join("");
+    document.getElementById("f_files").value = ""; document.getElementById("f_fileList").textContent = "";
     openOverlay("newCardOverlay");
     document.getElementById("f_projectName").focus();
   });
@@ -2653,6 +2694,11 @@
     saveCards();
     renderBoard();
     closeOverlay("newCardOverlay");
+    var nf = document.getElementById("f_files");
+    if(nf.files.length){
+      uploadFiles(Array.from(nf.files), "card", card.id, document.getElementById("f_fileTag").value, "");
+      nf.value = ""; document.getElementById("f_fileList").textContent = "";
+    }
     toast("Created " + card.id + " — " + card.projectName);
   });
 
@@ -2801,7 +2847,8 @@
             (isArchived(c) ? ' &nbsp;·&nbsp; <span class="stage-pill" style="--stage-color:' + hlaColor(c.hla.status) + '">' + esc(hlaLabel(c.hla.status)) + '</span>' : '') +
           '</div>' +
         '</div>' +
-        '<button class="close-x" data-close="detailOverlay">✕</button>' +
+        '<div class="head-actions"><button class="btn small" id="docsHeadBtn" title="Documents for this card">📎 Documents</button>' +
+        '<button class="close-x" data-close="detailOverlay">✕</button></div>' +
       '</div>' +
       '<div class="modal-body">' +
         '<div class="value-summary" id="summaryBar">' + summaryBarHtml(c) + '</div>' +
@@ -2819,6 +2866,8 @@
       '</div>';
 
     modal.querySelector('[data-close="detailOverlay"]').addEventListener("click", function(){ closeOverlay("detailOverlay"); });
+    document.getElementById("docsHeadBtn").addEventListener("click", function(){ openDocs("card", c.id, c.id + " — " + (c.projectName || "Untitled")); });
+    refreshDocBtn("card", c.id);
 
     document.getElementById("prevStageBtn").addEventListener("click", function(){
       if(prevKey){ moveCard(c.id, prevKey); }
@@ -2827,9 +2876,10 @@
       if(nextKey){ moveCard(c.id, nextKey); }
     });
     document.getElementById("deleteCardBtn").addEventListener("click", function(){
-      if(confirm("Delete " + c.id + " — " + c.projectName + "? This cannot be undone.")){
+      if(confirm("Delete " + c.id + " — " + c.projectName + "? This cannot be undone. Its uploaded documents will be deleted too.")){
         cards = cards.filter(function(x){ return x.id !== c.id; });
         deleteCardRemote(c.id);
+        purgeDocs("card", c.id);
         saveCards();
         renderBoard();
         closeOverlay("detailOverlay");
@@ -3877,6 +3927,210 @@
     });
   }
 
+  /* ---------------- Documents (Supabase Storage) ---------------- */
+  var DOC_TAGS = ["Drawings","Specs","Addenda","Submittals","Contract","Photos","Other"];
+  var DOC_BUCKET = "documents";
+  var DOC_INCLUDED_GB = 100;
+  var docMaxMb = 1024;
+  var docsCtx = null, docsList = [], docsTag = "Drawings";
+  var uploadJobs = [];
+
+  function pendingListHtml(files){
+    return files.length ? files.map(function(f){ return esc(f.name) + " (" + fmtSize(f.size) + ")"; }).join("<br>") : "";
+  }
+  document.getElementById("f_files").addEventListener("change", function(e){
+    document.getElementById("f_fileList").innerHTML = pendingListHtml(Array.from(e.target.files));
+  });
+  function fmtSize(b){
+    b = Number(b) || 0;
+    if(b >= 1073741824) return (b / 1073741824).toFixed(2) + " GB";
+    if(b >= 1048576) return (b / 1048576).toFixed(1) + " MB";
+    if(b >= 1024) return Math.round(b / 1024) + " KB";
+    return b + " B";
+  }
+  async function loadDocSettings(){
+    if(!supabaseClient) return;
+    try{
+      var r = await supabaseClient.from("app_settings").select("value").eq("key","documents").maybeSingle();
+      if(!r.error && r.data && r.data.value && Number(r.data.value.maxMb) > 0) docMaxMb = Number(r.data.value.maxMb);
+    }catch(e){}
+  }
+  async function fetchDocs(type, id){
+    if(!supabaseClient || !id) return [];
+    var r = await supabaseClient.from("documents").select("*").eq("owner_type", type).eq("owner_id", id).order("created_at", {ascending:false});
+    if(r.error){ toast("Couldn't load documents: " + r.error.message); return []; }
+    return r.data || [];
+  }
+  async function refreshDocBtn(type, id){
+    if(!id || !supabaseClient) return;
+    var list = await fetchDocs(type, id);
+    var b = document.getElementById("docsHeadBtn");
+    if(b) b.textContent = "📎 Documents" + (list.length ? " (" + list.length + ")" : "");
+  }
+  async function usageBytes(){
+    if(!supabaseClient) return 0;
+    var r = await supabaseClient.from("documents").select("size");
+    return r.error ? 0 : (r.data || []).reduce(function(s, x){ return s + (Number(x.size) || 0); }, 0);
+  }
+  async function openDocs(type, id, label){
+    docsCtx = {type:type, id:id, label:label};
+    docsList = [];
+    await loadDocSettings();
+    renderDocsModal();
+    openOverlay("docsOverlay");
+    docsList = await fetchDocs(type, id);
+    renderDocsModal();
+  }
+  function renderDocsModal(){
+    if(!docsCtx) return;
+    var m = document.getElementById("docsModal");
+    var rows = docsList.length ? docsList.map(function(d){
+      return '<div class="doc-row"><span class="badge">' + esc(d.tag) + '</span>' +
+        '<div class="nm"><a href="#" data-doc-open="' + esc(d.id) + '">' + esc(d.name) + '</a>' +
+        '<div class="mt">' + fmtSize(d.size) + ' · ' + esc(d.uploaded_by || "Unknown") + ' · ' + new Date(d.created_at).toLocaleString() + (d.note ? ' · ' + esc(d.note) : '') + '</div></div>' +
+        '<button class="btn small" data-doc-open="' + esc(d.id) + '">Open</button>' +
+        '<button class="miniremove" data-doc-del="' + esc(d.id) + '">Delete</button></div>';
+    }).join("") : '<div class="note-empty">No documents yet.</div>';
+    m.innerHTML =
+      '<div class="modal-head"><div><h2>📎 Documents</h2><div class="sub">' + esc(docsCtx.label) + '</div></div>' +
+      '<button class="close-x" id="docsCloseX">✕</button></div>' +
+      '<div class="modal-body">' +
+        '<div class="inline-row" style="margin-bottom:8px;">' +
+          '<div class="field" style="flex:0 0 150px;margin:0;"><label>Tag new uploads as</label><select id="docsTagSel">' +
+            DOC_TAGS.map(function(t){ return '<option' + (t === docsTag ? " selected" : "") + '>' + t + '</option>'; }).join("") + '</select></div>' +
+          '<div class="field" style="flex:1;margin:0;"><label>Note (optional)</label><input type="text" id="docsNote" placeholder="e.g. Level 2 floor plans, rev 3"></div>' +
+        '</div>' +
+        '<div class="dz" id="docsDrop">Drop files here or click to choose<br><span style="font-size:11.5px;">Large plan sets are fine — uploads are resumable (max ' + docMaxMb + ' MB per file)</span></div>' +
+        '<input type="file" id="docsInput" multiple style="display:none;">' +
+        '<div id="docsList">' + rows + '</div>' +
+        '<div style="margin-top:14px;font-size:12px;color:var(--ink-soft);" id="docsUsage">Calculating storage…</div>' +
+      '</div>';
+    m.querySelector("#docsCloseX").addEventListener("click", function(){ closeOverlay("docsOverlay"); });
+    var tagSel = m.querySelector("#docsTagSel");
+    tagSel.addEventListener("change", function(){ docsTag = tagSel.value; });
+    var drop = m.querySelector("#docsDrop"), inp = m.querySelector("#docsInput");
+    function go(files){ if(files && files.length) uploadFiles(Array.from(files), docsCtx.type, docsCtx.id, docsTag, m.querySelector("#docsNote").value.trim()); }
+    drop.addEventListener("click", function(){ inp.click(); });
+    inp.addEventListener("change", function(){ go(inp.files); inp.value = ""; });
+    ["dragenter","dragover"].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add("over"); }); });
+    ["dragleave","drop"].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove("over"); }); });
+    drop.addEventListener("drop", function(e){ go(e.dataTransfer.files); });
+    m.querySelectorAll("[data-doc-open]").forEach(function(el){
+      el.addEventListener("click", function(e){ e.preventDefault(); openDoc(docsList.find(function(d){ return d.id === el.dataset.docOpen; })); });
+    });
+    m.querySelectorAll("[data-doc-del]").forEach(function(el){
+      el.addEventListener("click", function(){ deleteDoc(docsList.find(function(d){ return d.id === el.dataset.docDel; })); });
+    });
+    usageBytes().then(function(b){
+      var u = m.querySelector("#docsUsage"); if(!u) return;
+      var pct = Math.min(100, b / (DOC_INCLUDED_GB * 1073741824) * 100);
+      u.innerHTML = 'Site-wide storage used: <strong>' + fmtSize(b) + '</strong> of ' + DOC_INCLUDED_GB + ' GB included with the plan' +
+        '<div class="meter"><div style="width:' + pct.toFixed(1) + '%"></div></div>';
+    });
+  }
+  async function openDoc(d){
+    if(!d) return;
+    var w = window.open("", "_blank");
+    var r = await supabaseClient.storage.from(DOC_BUCKET).createSignedUrl(d.path, 3600);
+    if(r.error || !r.data){ if(w) w.close(); toast("Couldn't open file: " + (r.error ? r.error.message : "no link")); return; }
+    if(w) w.location = r.data.signedUrl; else window.location = r.data.signedUrl;
+  }
+  async function deleteDoc(d){
+    if(!d || !confirm('Delete "' + d.name + '"? This cannot be undone.')) return;
+    var r1 = await supabaseClient.storage.from(DOC_BUCKET).remove([d.path]);
+    if(r1.error){ toast("Couldn't delete file: " + r1.error.message); return; }
+    var r2 = await supabaseClient.from("documents").delete().eq("id", d.id);
+    if(r2 && r2.error){ toast("Couldn't delete record: " + r2.error.message); return; }
+    toast("Deleted " + d.name);
+    docsChanged(d.owner_type, d.owner_id);
+  }
+  async function purgeDocs(type, id){
+    if(!supabaseClient) return;
+    try{
+      var list = await fetchDocs(type, id);
+      if(!list.length) return;
+      await supabaseClient.storage.from(DOC_BUCKET).remove(list.map(function(d){ return d.path; }));
+      await supabaseClient.from("documents").delete().eq("owner_type", type).eq("owner_id", id);
+    }catch(e){ console.error("purgeDocs failed", e); }
+  }
+  async function docsChanged(type, id){
+    if(docsCtx && docsCtx.type === type && docsCtx.id === id){
+      docsList = await fetchDocs(type, id);
+      if(document.getElementById("docsOverlay").classList.contains("open")) renderDocsModal();
+    }
+    refreshDocBtn(type, id);
+  }
+  function renderUploadStatus(){
+    var el = document.getElementById("uploadStatus");
+    if(!uploadJobs.length){ el.style.display = "none"; return; }
+    el.style.display = "block";
+    el.innerHTML = '<strong>Uploads</strong>' + uploadJobs.map(function(j){
+      return '<div style="margin-top:6px;">' + esc(j.name) + ' — ' + (j.state === "uploading" ? j.pct + '%' : j.state === "done" ? '✅ done' : j.state === "queued" ? 'waiting' : '❌ ' + esc(j.err || "failed")) +
+        (j.state === "uploading" ? '<div class="meter"><div style="width:' + j.pct + '%"></div></div>' : '') + '</div>';
+    }).join("");
+  }
+  window.addEventListener("beforeunload", function(e){
+    if(uploadJobs.some(function(j){ return j.state === "uploading" || j.state === "queued"; })){ e.preventDefault(); e.returnValue = ""; }
+  });
+  function safeName(n){ return n.replace(/[^A-Za-z0-9._-]+/g, "_").slice(-120); }
+  async function uploadOne(file, type, id, tag, note, onPct){
+    var path = type + "/" + id + "/" + uid() + "-" + safeName(file.name);
+    var ctype = file.type || "application/octet-stream";
+    var sess = (await supabaseClient.auth.getSession()).data.session;
+    if(window.tus && sess){
+      await new Promise(function(resolve, reject){
+        var up = new tus.Upload(file, {
+          endpoint: SUPABASE_URL.replace("https://", "https://").replace(".supabase.co", ".storage.supabase.co") + "/storage/v1/upload/resumable",
+          retryDelays: [0, 3000, 5000, 10000, 20000],
+          headers: {authorization: "Bearer " + sess.access_token, "x-upsert": "false"},
+          uploadDataDuringCreation: true,
+          removeFingerprintOnSuccess: true,
+          chunkSize: 6 * 1024 * 1024,
+          metadata: {bucketName: DOC_BUCKET, objectName: path, contentType: ctype, cacheControl: "3600"},
+          onError: reject,
+          onProgress: function(sent, total){ onPct(Math.round(sent / total * 100)); },
+          onSuccess: resolve
+        });
+        up.findPreviousUploads().then(function(prev){ if(prev.length) up.resumeFromPreviousUpload(prev[0]); up.start(); });
+      });
+    } else {
+      var r = await supabaseClient.storage.from(DOC_BUCKET).upload(path, file, {contentType: ctype});
+      if(r.error) throw r.error;
+      onPct(100);
+    }
+    var ins = await supabaseClient.from("documents").insert({owner_type:type, owner_id:id, name:file.name, path:path, size:file.size, content_type:ctype, tag:tag || "Other", note:note || "", uploaded_by:getUser() || ""});
+    if(ins && ins.error) throw ins.error;
+  }
+  async function uploadFiles(files, type, id, tag, note){
+    if(!supabaseClient){ toast("Not connected to the database"); return; }
+    await loadDocSettings();
+    var max = docMaxMb * 1048576, batch = [];
+    files.forEach(function(f){
+      if(f.size > max){ toast(f.name + " is over the " + docMaxMb + " MB limit (change it in Settings)"); return; }
+      var job = {name:f.name, pct:0, state:"queued", file:f};
+      uploadJobs.push(job); batch.push(job);
+    });
+    renderUploadStatus();
+    for(var i = 0; i < batch.length; i++){
+      var job = batch[i];
+      job.state = "uploading"; renderUploadStatus();
+      try{
+        await uploadOne(job.file, type, id, tag, note, function(p){ job.pct = p; renderUploadStatus(); });
+        job.state = "done";
+      }catch(e){
+        job.state = "failed"; job.err = (e && (e.message || e.toString())) || "failed";
+        toast("Upload failed: " + job.name);
+      }
+      job.file = null;
+      renderUploadStatus();
+      docsChanged(type, id);
+    }
+    setTimeout(function(){
+      uploadJobs = uploadJobs.filter(function(j){ return j.state === "uploading" || j.state === "queued" || j.state === "failed"; });
+      renderUploadStatus();
+    }, 5000);
+  }
+
   /* ---------------- Quick-add company ---------------- */
   var quickCompanyCb = null;
   function openQuickCompany(cb){
@@ -3957,6 +4211,22 @@
     openOverlay("settingsOverlay");
     document.getElementById("st_gatePw").focus();
   }
+  async function renderSettingsExtra(){
+    await loadDocSettings();
+    var b = await usageBytes();
+    document.getElementById("settingsExtra").innerHTML =
+      '<p class="section-title" style="margin-top:20px;">Documents</p>' +
+      '<div class="inline-row"><div class="field" style="flex:0 0 200px;margin:0;"><label>Max file size (MB)</label><input type="number" min="1" id="st_docMax" value="' + docMaxMb + '"></div>' +
+      '<button class="btn small primary" id="st_docMaxSave">Save</button></div>' +
+      '<div class="note-empty" style="margin-top:6px;">Storage used: <strong>' + fmtSize(b) + '</strong> of ' + DOC_INCLUDED_GB + ' GB included. Files bigger than the project-wide Supabase upload limit will still be refused by Supabase — raise it under Storage → Settings in the Supabase dashboard.</div>';
+    document.getElementById("st_docMaxSave").addEventListener("click", async function(){
+      var mb = Number(document.getElementById("st_docMax").value);
+      if(!(mb > 0)){ toast("Enter a size in MB"); return; }
+      var res = await supabaseClient.from("app_settings").upsert({key:"documents", value:{maxMb: mb}, updated_at:new Date().toISOString(), updated_by:getUser() || ""});
+      if(res.error){ toast("Couldn't save: " + res.error.message); return; }
+      docMaxMb = mb; toast("Max file size set to " + mb + " MB");
+    });
+  }
   async function unlockSettings(){
     var pw = document.getElementById("st_gatePw").value;
     var ok = false;
@@ -3966,6 +4236,7 @@
     document.getElementById("settingsPanel").style.display = "block";
     ["st_curPw","st_newPw","st_newPw2"].forEach(function(id){ document.getElementById(id).value = ""; });
     showSettingsErr("st_pwErr", "");
+    renderSettingsExtra();
   }
   document.getElementById("settingsBtn").addEventListener("click", openSettings);
   document.getElementById("st_unlockBtn").addEventListener("click", unlockSettings);
