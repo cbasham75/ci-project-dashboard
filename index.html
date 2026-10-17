@@ -2240,7 +2240,7 @@
   }
 
   /* ---- Billing report ---- */
-  function billingRowData(c){
+  function billingRowData(c, from, to){
     var contract = Number(c.contractAmount) || 0;
     var cos = c.changeOrders || [];
     var coApproved = cos.filter(function(co){ return co.approved; }).reduce(function(s, co){ return s + (Number(co.amount) || 0); }, 0);
@@ -2250,10 +2250,12 @@
     var items = (c.pm && c.pm.billing) || [];
     var schedPct = items.reduce(function(s, b){ return s + (Number(b.percent) || 0); }, 0);
     var duePct = items.filter(function(b){ return b.date && b.date <= today; }).reduce(function(s, b){ return s + (Number(b.percent) || 0); }, 0);
+    var inRange = items.filter(function(b){ return (from || to) ? (b.date && (!from || b.date >= from) && (!to || b.date <= to)) : true; });
+    var rangePct = inRange.reduce(function(s, b){ return s + (Number(b.percent) || 0); }, 0);
     var upcoming = items.map(function(b){ return b.date; }).filter(function(d){ return d && d > today; }).sort()[0] || "";
     var ap = (c.pm && c.pm.apContact) || {};
     return {
-      c:c, contract:contract, coApproved:coApproved, coUnbilled:coUnbilled, total:total,
+      c:c, inRangeCount:inRange.length, rangeAmt:total * rangePct / 100, contract:contract, coApproved:coApproved, coUnbilled:coUnbilled, total:total,
       pctComplete:Number(c.pm && c.pm.percentComplete) || 0,
       schedPct:schedPct, schedAmt:total * schedPct / 100, dueAmt:total * duePct / 100, duePct:duePct,
       unsched:Math.max(0, total * (100 - schedPct) / 100), next:upcoming,
@@ -2263,10 +2265,11 @@
     };
   }
   function billingReportHtml(){
-    var f = reportFilters.billing || (reportFilters.billing = {customer:"", pm:""});
-    var all = cards.filter(function(c){ return CONFIG.BILLING_REPORT_STATUSES.indexOf(c.status) !== -1 && !isArchived(c); }).map(billingRowData);
+    var f = reportFilters.billing || (reportFilters.billing = {customer:"", pm:"", from:"", to:""});
+    var hasRange = !!(f.from || f.to);
+    var all = cards.filter(function(c){ return CONFIG.BILLING_REPORT_STATUSES.indexOf(c.status) !== -1 && !isArchived(c); }).map(function(c){ return billingRowData(c, f.from, f.to); });
     function uniq(k){ return all.map(function(r){ return r[k]; }).filter(Boolean).filter(function(v, i, a){ return a.indexOf(v) === i; }).sort(); }
-    var rows = all.filter(function(r){ return (!f.customer || r.customer === f.customer) && (!f.pm || r.pm === f.pm); });
+    var rows = all.filter(function(r){ return (!f.customer || r.customer === f.customer) && (!f.pm || r.pm === f.pm) && (!hasRange || r.inRangeCount > 0); });
     function sum(k){ return rows.reduce(function(s, r){ return s + r[k]; }, 0); }
     function sel(id, label, list, val){
       return '<div class="field"><label>' + label + '</label><select id="' + id + '"><option value="">All</option>' +
@@ -2284,22 +2287,31 @@
         '<td class="num">' + r.pctComplete + '%</td>' +
         '<td class="num">' + r.schedPct + '%</td>' +
         '<td class="num">' + money(r.dueAmt) + '</td>' +
+        '<td class="num">' + money(r.rangeAmt) + '</td>' +
         '<td class="num">' + money(r.unsched) + '</td>' +
         '<td class="num">' + money(r.coUnbilled) + '</td>' +
         '<td data-sort="' + esc(r.next) + '">' + esc(r.next || "—") + '</td>' +
         '<td>' + esc(r.ap || "—") + '</td>' +
       '</tr>';
     }).join("");
-    return '<div class="report-filters">' + sel("billCustFilter", "Customer", uniq("customer"), f.customer) + sel("billPmFilter", "PM", uniq("pm"), f.pm) + '</div>' +
+    function dateField(id, label, val){ return '<div class="field"><label>' + label + '</label><input type="date" id="' + id + '" value="' + esc(val || "") + '"></div>'; }
+    return '<div class="report-filters">' + sel("billCustFilter", "Customer", uniq("customer"), f.customer) + sel("billPmFilter", "PM", uniq("pm"), f.pm) +
+      dateField("billFrom", "Billing date from", f.from) + dateField("billTo", "to", f.to) +
+      '<div class="field"><label>Quick range</label><div class="inline-row">' +
+        '<button type="button" class="btn small" data-bill-preset="month">This month</button>' +
+        '<button type="button" class="btn small" data-bill-preset="next">Next month</button>' +
+        '<button type="button" class="btn small" data-bill-preset="30">Next 30 days</button>' +
+        '<button type="button" class="btn small" data-bill-preset="clear">Clear</button></div></div></div>' +
       '<div class="report-summary">' +
         '<div class="stat"><div class="label">Projects</div><div class="num">' + rows.length + '</div></div>' +
         '<div class="stat"><div class="label">Total contract + approved COs</div><div class="num">' + money(sum("total")) + '</div></div>' +
         '<div class="stat"><div class="label">Due to date</div><div class="num">' + money(sum("dueAmt")) + '</div></div>' +
+        (hasRange ? '<div class="stat"><div class="label">Billing in range</div><div class="num">' + money(sum("rangeAmt")) + '</div></div>' : '') +
         '<div class="stat"><div class="label">Approved COs not billed</div><div class="num">' + money(sum("coUnbilled")) + '</div></div>' +
       '</div>' +
-      '<div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>Project</th><th>Customer</th><th>PM</th><th>Status</th><th class="num">Contract</th><th class="num">Approved COs</th><th class="num">Total</th><th class="num">% complete</th><th class="num">% scheduled</th><th class="num">Due to date</th><th class="num">Not yet scheduled</th><th class="num">COs not billed</th><th>Next billing</th><th>AP contact</th></tr></thead>' +
-      '<tbody>' + (body || '<tr><td colspan="14" style="color:var(--ink-soft);">No projects in billing stages.</td></tr>') + '</tbody></table></div>' +
-      '<div class="note-empty" style="margin-top:8px;">Due to date = scheduled billing items dated today or earlier, as a share of contract + approved change orders. Click any column heading to sort.</div>';
+      '<div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>Project</th><th>Customer</th><th>PM</th><th>Status</th><th class="num">Contract</th><th class="num">Approved COs</th><th class="num">Total</th><th class="num">% complete</th><th class="num">% scheduled</th><th class="num">Due to date</th><th class="num">' + (hasRange ? 'Billing in range' : 'All scheduled') + '</th><th class="num">Not yet scheduled</th><th class="num">COs not billed</th><th>Next billing</th><th>AP contact</th></tr></thead>' +
+      '<tbody>' + (body || '<tr><td colspan="15" style="color:var(--ink-soft);">No projects in billing stages.</td></tr>') + '</tbody></table></div>' +
+      '<div class="note-empty" style="margin-top:8px;">Due to date = scheduled billing items dated today or earlier, as a share of contract + approved change orders. With a date range set, only projects with a billing item dated in that range are shown, and "Billing in range" totals those items. Click any column heading to sort.</div>';
   }
 
   function estimatingStageLabel(c){
@@ -2558,6 +2570,20 @@
     if(bc) bc.addEventListener("change", function(){ reportFilters.billing.customer = bc.value; renderReportContent(); });
     var bp = host.querySelector("#billPmFilter");
     if(bp) bp.addEventListener("change", function(){ reportFilters.billing.pm = bp.value; renderReportContent(); });
+    var bf = host.querySelector("#billFrom");
+    if(bf) bf.addEventListener("change", function(){ reportFilters.billing.from = bf.value; renderReportContent(); });
+    var bt = host.querySelector("#billTo");
+    if(bt) bt.addEventListener("change", function(){ reportFilters.billing.to = bt.value; renderReportContent(); });
+    host.querySelectorAll("[data-bill-preset]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var now = new Date(), y = now.getFullYear(), m = now.getMonth(), p = btn.dataset.billPreset, f2 = reportFilters.billing;
+        if(p === "month"){ f2.from = formatDateISO(new Date(y, m, 1)); f2.to = formatDateISO(new Date(y, m + 1, 0)); }
+        else if(p === "next"){ f2.from = formatDateISO(new Date(y, m + 1, 1)); f2.to = formatDateISO(new Date(y, m + 2, 0)); }
+        else if(p === "30"){ f2.from = formatDateISO(now); f2.to = formatDateISO(new Date(y, m, now.getDate() + 30)); }
+        else { f2.from = ""; f2.to = ""; }
+        renderReportContent();
+      });
+    });
     var cg = host.querySelector("#customerGroupBy");
     if(cg) cg.addEventListener("change", function(){ reportFilters.customers.groupBy = cg.value; renderReportContent(); });
   }
