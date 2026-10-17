@@ -756,7 +756,7 @@
       '{"type": "material", "description": "Cat6A plenum cable, 1000 ft box", "qty": 12, "unit": "box", "unitCost": 285.00}, ' +
       '{"type": "labor", "description": "Pull and terminate drops", "qty": 120, "unitCost": 65}]}]}]}\n' +
       'Rules: type is "material" or "labor". unitCost is OUR cost before markup. For labor, qty is HOURS and unitCost is the hourly cost rate. ' +
-      'An optional per-line "markup" (percent) overrides the default markup. Leave out taxRate if unknown.'
+      'An optional per-line "markup" (percent) overrides the default markup. An optional "taxable": false marks a line as tax-exempt. Leave out taxRate if unknown.'
   };
 
   /* ---------------- Config ---------------- */
@@ -4363,7 +4363,7 @@
     var ext = (Number(it.qty) || 0) * (Number(it.unitCost) || 0);
     var pct = (it.markup === null || it.markup === undefined || it.markup === "") ? (lab ? e.laborMarkup : e.materialMarkup) : (Number(it.markup) || 0);
     var mk = ext * pct / 100;
-    var tax = (!lab || e.taxLabor) ? ext * (Number(e.taxRate) || 0) / 100 : 0;
+    var tax = (it.taxable !== false && (!lab || e.taxLabor)) ? ext * (Number(e.taxRate) || 0) / 100 : 0;
     return {ext:ext, mk:mk, price:ext + mk, tax:tax, lab:lab};
   }
   function estCalc(items, e){
@@ -4432,6 +4432,7 @@
       '<td style="width:64px;">' + (lab ? '<span style="color:var(--ink-soft);">hr</span>' : '<input class="compact-input" type="text" data-f="unit" value="' + esc(it.unit || "") + '">') + '</td>' +
       '<td style="width:104px;"><input class="compact-input" type="number" step="any" data-f="unitCost" value="' + esc(String(it.unitCost)) + '"></td>' +
       '<td style="width:78px;"><input class="compact-input" type="number" step="any" data-f="markup" placeholder="' + defMk + '" value="' + ((it.markup === null || it.markup === undefined || it.markup === "") ? "" : esc(String(it.markup))) + '"></td>' +
+      '<td style="width:38px;text-align:center;"><input type="checkbox" data-f="taxable" title="Taxable" ' + (it.taxable === false ? '' : 'checked') + '></td>' +
       '<td class="num" style="width:104px;" data-ext="' + it.id + '">' + money(n.ext) + '</td>' +
       '<td class="num" style="width:104px;" data-price="' + it.id + '">' + money(n.price) + '</td>' +
       '<td style="width:30px;"><button class="miniremove" data-act="delitem" title="Remove line">✕</button></td></tr>';
@@ -4442,7 +4443,7 @@
         '<span class="mono" style="font-weight:700;" data-subtotal="' + u.id + '">' + money(estCalc(u.items, e).total) + '</span>' +
         '<button class="est-mv" data-act="subup" title="Move up">▲</button><button class="est-mv" data-act="subdn" title="Move down">▼</button>' +
         '<button class="miniremove" data-act="delsub">Remove</button></div>' +
-      (u.items.length ? '<table class="est-tbl"><thead><tr><th></th><th>Type</th><th>Description</th><th>Qty</th><th>Unit</th><th>Unit cost</th><th>Markup %</th><th class="num">Cost</th><th class="num">Price</th><th></th></tr></thead><tbody>' +
+      (u.items.length ? '<table class="est-tbl"><thead><tr><th></th><th>Type</th><th>Description</th><th>Qty</th><th>Unit</th><th>Unit cost</th><th>Markup %</th><th>Tax</th><th class="num">Cost</th><th class="num">Price</th><th></th></tr></thead><tbody>' +
         u.items.map(function(it){ return itemRowHtml(it, e); }).join("") + '</tbody></table>' : '<div class="note-empty">No lines yet.</div>') +
       '<div class="inline-row" style="margin-top:6px;"><button class="add-row-btn" data-act="addmat">+ Material</button><button class="add-row-btn" data-act="addlab">+ Labor</button></div></div>';
   }
@@ -4503,7 +4504,7 @@
     var lab = String(it.type || "").toLowerCase().indexOf("lab") === 0;
     function num(){ for(var k = 0; k < arguments.length; k++){ var x = it[arguments[k]]; if(x !== undefined && x !== null && x !== "" && !isNaN(Number(x))) return Number(x); } return 0; }
     var mk = (it.markup === undefined || it.markup === null || it.markup === "" || isNaN(Number(it.markup))) ? null : Number(it.markup);
-    return {id:uid(), type: lab ? "labor" : "material", description:String(it.description || it.name || ""), qty:num("qty","quantity","hours"), unit: lab ? "hr" : String(it.unit || "ea"), unitCost:num("unitCost","cost","rate"), markup:mk};
+    return {id:uid(), type: lab ? "labor" : "material", description:String(it.description || it.name || ""), qty:num("qty","quantity","hours"), unit: lab ? "hr" : String(it.unit || "ea"), unitCost:num("unitCost","cost","rate"), markup:mk, taxable:!(it.taxable === false || String(it.taxable).toLowerCase() === "false" || it.taxable === 0)};
   }
   function estParseImport(txt){
     var data = JSON.parse(txt);
@@ -4550,7 +4551,7 @@
       if(act === "exportjson"){
         var blob = new Blob([JSON.stringify({taxRate:e.taxRate, taxLabor:e.taxLabor, materialMarkup:e.materialMarkup, laborMarkup:e.laborMarkup,
           sections:e.sections.map(function(sec){ return {title:sec.title, subsections:sec.subsections.map(function(u){ return {title:u.title, items:u.items.map(function(it){
-            var o = {type:it.type, description:it.description, qty:it.qty, unit:it.unit, unitCost:it.unitCost}; if(it.markup !== null && it.markup !== undefined) o.markup = it.markup; return o; })}; })}; })}, null, 2)], {type:"application/json"});
+            var o = {type:it.type, description:it.description, qty:it.qty, unit:it.unit, unitCost:it.unitCost}; if(it.markup !== null && it.markup !== undefined) o.markup = it.markup; if(it.taxable === false) o.taxable = false; return o; })}; })}; })}, null, 2)], {type:"application/json"});
         var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "estimate-" + estCtx.cardId + "-V" + (estCtx.vi + 1) + ".json"; a.click(); URL.revokeObjectURL(a.href);
         return;
       }
@@ -4597,6 +4598,7 @@
         else if(f === "unit") it.unit = val;
         else if(f === "qty" || f === "unitCost") it[f] = parseFloat(val) || 0;
         else if(f === "markup") it.markup = (val === "" || isNaN(parseFloat(val))) ? null : parseFloat(val);
+        else if(f === "taxable"){ it.taxable = !!val; }
       }
       else if(f === "taxRate" || f === "materialMarkup" || f === "laborMarkup") e[f] = parseFloat(val) || 0;
       else if(f === "taxLabor") e.taxLabor = !!val;
