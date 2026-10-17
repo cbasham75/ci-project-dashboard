@@ -306,6 +306,28 @@
     padding:14px 20px;border-top:1px solid var(--line-soft);
     display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;
   }
+  #estimateScreen{position:fixed;inset:0;z-index:80;background:var(--paper);color:var(--ink);flex-direction:column;}
+  .est-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--paper-raised);}
+  .est-head h2{margin:0;font-size:16px;flex:1 1 260px;}
+  .est-set{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;padding:10px 20px;border-bottom:1px solid var(--line-soft);background:var(--paper-raised);}
+  .est-set .field{margin:0;}
+  .est-body{flex:1;overflow:auto;padding:16px 20px;}
+  .est-sec{background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;margin-bottom:14px;}
+  .est-sec-head{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap;}
+  .est-title{flex:1 1 200px;font-weight:700;font-size:15px;border:none;border-bottom:1px dashed var(--line);background:transparent;color:var(--ink);padding:4px 2px;}
+  .est-sub{padding:8px 12px 12px;}
+  .est-sub-head{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap;}
+  .est-sub-head .est-title{font-size:13.5px;font-weight:600;}
+  .est-tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .est-tbl th{text-align:left;font-size:11px;color:var(--ink-soft);padding:4px 4px;font-weight:600;}
+  .est-tbl td{padding:3px 4px;vertical-align:middle;}
+  .est-tbl td.num,.est-tbl th.num{text-align:right;font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+  .est-tbl input,.est-tbl select{width:100%;}
+  .est-mv{border:none;background:none;cursor:pointer;color:var(--ink-soft);font-size:10px;padding:1px 3px;}
+  .est-foot{display:flex;gap:22px;flex-wrap:wrap;align-items:center;padding:12px 20px;border-top:2px solid var(--line);background:var(--paper-raised);font-size:12px;color:var(--ink-soft);}
+  .est-foot strong{display:block;font-size:15px;color:var(--ink);font-family:'IBM Plex Mono',monospace;}
+  .est-import{padding:12px 20px;border-bottom:1px solid var(--line);background:var(--paper-raised);}
+  .est-import textarea{width:100%;min-height:120px;font-family:'IBM Plex Mono',monospace;font-size:12px;}
   th.sortable{cursor:pointer;user-select:none;white-space:nowrap;}
   th.sortable:hover{color:var(--ink);}
   .sg-row{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line-soft);}
@@ -702,6 +724,7 @@
   </div>
 </div>
 
+<div id="estimateScreen" style="display:none;"></div>
 <div class="overlay" id="suggestOverlay" style="z-index:60;">
   <div class="modal" id="suggestModal" style="max-width:560px;"></div>
 </div>
@@ -725,7 +748,15 @@
     SUGGESTION_PROMPT: "Got an idea? Tell us where it applies (tab, card, tile, calendar…) and what you'd like changed.",
     SUGGESTION_PLACEHOLDER: "e.g. “Estimating tab: add a field for …”",
     BILLING_REPORT_STATUSES: ["project_created","project_in_progress","project_complete","final_invoiced"],
-    DOC_INCLUDED_GB: 100
+    DOC_INCLUDED_GB: 100,
+    // Estimate page defaults (markup is a percent added on top of cost; tax is a percent of cost)
+    ESTIMATE_DEFAULTS: {taxRate:0, taxLabor:false, materialMarkup:30, laborMarkup:100},
+    ESTIMATE_CLAUDE_PROMPT: 'Return the estimate as ONLY a JSON object (no commentary) in exactly this shape:\n' +
+      '{"taxRate": 9.75, "sections": [{"title": "Section name", "subsections": [{"title": "Subsection name", "items": [' +
+      '{"type": "material", "description": "Cat6A plenum cable, 1000 ft box", "qty": 12, "unit": "box", "unitCost": 285.00}, ' +
+      '{"type": "labor", "description": "Pull and terminate drops", "qty": 120, "unitCost": 65}]}]}]}\n' +
+      'Rules: type is "material" or "labor". unitCost is OUR cost before markup. For labor, qty is HOURS and unitCost is the hourly cost rate. ' +
+      'An optional per-line "markup" (percent) overrides the default markup. Leave out taxRate if unknown.'
   };
 
   /* ---------------- Config ---------------- */
@@ -3179,6 +3210,7 @@
     if(activeEstimateVersion > versions.length - 1) activeEstimateVersion = versions.length - 1;
     if(activeEstimateVersion < 0) activeEstimateVersion = 0;
     var v = versions[activeEstimateVersion];
+    var estLines = estLineCount(v), linked = estLines > 0;
 
     var subtabsHtml = versions.map(function(ver, i){
       var label = "V" + (i+1) + (ver.stage ? " · " + esc(ver.stage) : "");
@@ -3200,12 +3232,13 @@
         (activeEstimateVersion > 0 ?
           '<div class="field" style="max-width:200px;"><label>Due date (this version)</label><input type="date" data-vfield="dueDate" value="' + esc(v.dueDate) + '"></div>'
           : '') +
-        '<p style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:14px 0 6px;">Pricing</p>' +
+        '<div style="margin:14px 0 4px;"><button class="btn small primary" id="openEstimateBtn">📐 Open estimate' + (linked ? ' (' + estLines + ' line' + (estLines === 1 ? '' : 's') + ')' : '') + '</button></div>' +
+        '<p style="font-size:11px;font-weight:700;color:var(--ink-soft);margin:10px 0 6px;">Pricing' + (linked ? ' — calculated from the estimate' : '') + '</p>' +
         '<div class="inline-row">' +
-          '<div class="field" style="flex:1 1 110px;"><label>Material</label><input type="text" class="money-input" data-vfield="materialPrice" value="' + money(v.materialPrice||0) + '"></div>' +
-          '<div class="field" style="flex:1 1 110px;"><label>Labor</label><input type="text" class="money-input" data-vfield="laborPrice" value="' + money(v.laborPrice||0) + '"></div>' +
-          '<div class="field" style="flex:1 1 90px;"><label>Tax</label><input type="text" class="money-input" data-vfield="tax" value="' + money(v.tax||0) + '"></div>' +
-          '<div class="field" style="flex:1 1 80px;"><label>Hours</label><input type="number" step="0.5" data-vfield="laborHours" value="' + Number(v.laborHours||0) + '"></div>' +
+          '<div class="field" style="flex:1 1 110px;"><label>Material</label><input type="text" class="money-input" data-vfield="materialPrice"' + (linked ? ' disabled' : '') + ' value="' + money(v.materialPrice||0) + '"></div>' +
+          '<div class="field" style="flex:1 1 110px;"><label>Labor</label><input type="text" class="money-input" data-vfield="laborPrice"' + (linked ? ' disabled' : '') + ' value="' + money(v.laborPrice||0) + '"></div>' +
+          '<div class="field" style="flex:1 1 90px;"><label>Tax</label><input type="text" class="money-input" data-vfield="tax"' + (linked ? ' disabled' : '') + ' value="' + money(v.tax||0) + '"></div>' +
+          '<div class="field" style="flex:1 1 80px;"><label>Hours</label><input type="number" step="0.5" data-vfield="laborHours"' + (linked ? ' disabled' : '') + ' value="' + Number(v.laborHours||0) + '"></div>' +
         '</div>' +
         '<div class="field" style="max-width:220px;"><label>Estimate total</label>' +
           '<div class="mono" style="font-size:16px;font-weight:700;padding:8px 0;">' + money(estimateTotal(c)) + '</div>' +
@@ -3662,6 +3695,8 @@
         renderDetail();
       });
     }
+    var openEst = host.querySelector("#openEstimateBtn");
+    if(openEst) openEst.addEventListener("click", function(){ openEstimate(c.id, activeEstimateVersion); });
     var removeVersionBtn = host.querySelector("#removeVersionBtn");
     if(removeVersionBtn){
       removeVersionBtn.addEventListener("click", function(){
@@ -4296,6 +4331,290 @@
       renderUploadStatus();
     }, 5000);
   }
+
+  /* ---------------- Estimate page (one per estimate version) ---------------- */
+  var estCtx = null, estSaveTimer = null, estFocusId = null, estImportOpen = false, estCollapsed = {};
+  function estCard(){ return estCtx ? cards.find(function(x){ return x.id === estCtx.cardId; }) : null; }
+  function estVer(){ var c = estCard(); return c ? c.estimateVersions[estCtx.vi] : null; }
+  function r2(x){ return Math.round((Number(x) || 0) * 100) / 100; }
+  function ensureEstimate(v){
+    if(!v.estimate || typeof v.estimate !== "object") v.estimate = {};
+    var e = v.estimate, d = CONFIG.ESTIMATE_DEFAULTS;
+    ["taxRate","materialMarkup","laborMarkup"].forEach(function(k){ if(typeof e[k] !== "number") e[k] = d[k]; });
+    if(typeof e.taxLabor !== "boolean") e.taxLabor = d.taxLabor;
+    if(!Array.isArray(e.sections)) e.sections = [];
+    e.sections.forEach(function(sec){ if(!Array.isArray(sec.subsections)) sec.subsections = []; sec.subsections.forEach(function(u){ if(!Array.isArray(u.items)) u.items = []; }); });
+    return e;
+  }
+  function estFlat(list){
+    var out = [];
+    list.forEach(function(sec){ sec.subsections.forEach(function(u){ out = out.concat(u.items); }); });
+    return out;
+  }
+  function estLineCount(v){
+    var n = 0;
+    if(v && v.estimate && Array.isArray(v.estimate.sections)){
+      v.estimate.sections.forEach(function(sec){ (sec.subsections || []).forEach(function(u){ n += (u.items || []).length; }); });
+    }
+    return n;
+  }
+  function estItemNums(it, e){
+    var lab = it.type === "labor";
+    var ext = (Number(it.qty) || 0) * (Number(it.unitCost) || 0);
+    var pct = (it.markup === null || it.markup === undefined || it.markup === "") ? (lab ? e.laborMarkup : e.materialMarkup) : (Number(it.markup) || 0);
+    var mk = ext * pct / 100;
+    var tax = (!lab || e.taxLabor) ? ext * (Number(e.taxRate) || 0) / 100 : 0;
+    return {ext:ext, mk:mk, price:ext + mk, tax:tax, lab:lab};
+  }
+  function estCalc(items, e){
+    var t = {matCost:0, matMarkup:0, labCost:0, labMarkup:0, tax:0, hours:0};
+    items.forEach(function(it){
+      var n = estItemNums(it, e);
+      if(n.lab){ t.labCost += n.ext; t.labMarkup += n.mk; t.hours += Number(it.qty) || 0; } else { t.matCost += n.ext; t.matMarkup += n.mk; }
+      t.tax += n.tax;
+    });
+    t.matPrice = t.matCost + t.matMarkup; t.labPrice = t.labCost + t.labMarkup; t.total = t.matPrice + t.labPrice + t.tax;
+    return t;
+  }
+  function estSyncVersion(v){
+    if(!v || !v.estimate || !estLineCount(v)) return;
+    var t = estCalc(estFlat(v.estimate.sections), v.estimate);
+    v.materialPrice = r2(t.matPrice); v.laborPrice = r2(t.labPrice); v.tax = r2(t.tax); v.laborHours = r2(t.hours);
+  }
+  function estSaveSoon(){
+    estSyncVersion(estVer());
+    clearTimeout(estSaveTimer);
+    estSaveTimer = setTimeout(function(){ saveCards(); }, 700);
+  }
+  function openEstimate(cardId, vi){
+    estCtx = {cardId:cardId, vi:vi};
+    var v = estVer(); if(!v) return;
+    ensureEstimate(v);
+    estImportOpen = false; estCollapsed = {};
+    document.getElementById("estimateScreen").style.display = "flex";
+    renderEstimate();
+  }
+  function closeEstimate(){
+    clearTimeout(estSaveTimer);
+    var v = estVer();
+    if(v){ estSyncVersion(v); saveCards(); }
+    document.getElementById("estimateScreen").style.display = "none";
+    estCtx = null;
+    renderBoard(); updateSummaryBar(); renderDetail();
+  }
+  function setTxt(host, sel, txt){ var el = host.querySelector(sel); if(el) el.textContent = txt; }
+  function estRefresh(){
+    var v = estVer(); if(!v) return;
+    var e = v.estimate, host = document.getElementById("estimateScreen");
+    e.sections.forEach(function(sec){
+      setTxt(host, '[data-sectotal="' + sec.id + '"]', money(estCalc(estFlat([sec]), e).total));
+      sec.subsections.forEach(function(u){
+        setTxt(host, '[data-subtotal="' + u.id + '"]', money(estCalc(u.items, e).total));
+        u.items.forEach(function(it){
+          var n = estItemNums(it, e);
+          setTxt(host, '[data-ext="' + it.id + '"]', money(n.ext));
+          setTxt(host, '[data-price="' + it.id + '"]', money(n.price));
+        });
+      });
+    });
+    var t = estCalc(estFlat(e.sections), e);
+    setTxt(host, "#estT_mat", money(t.matPrice)); setTxt(host, "#estT_lab", money(t.labPrice));
+    setTxt(host, "#estT_tax", money(t.tax)); setTxt(host, "#estT_total", money(t.total));
+    setTxt(host, "#estT_hours", String(r2(t.hours)));
+  }
+  function itemRowHtml(it, e){
+    var n = estItemNums(it, e), lab = n.lab, defMk = lab ? e.laborMarkup : e.materialMarkup;
+    return '<tr data-iid="' + it.id + '">' +
+      '<td style="width:38px;white-space:nowrap;"><button class="est-mv" data-act="itemup" title="Move up">▲</button><button class="est-mv" data-act="itemdn" title="Move down">▼</button></td>' +
+      '<td style="width:96px;"><select class="compact-input" data-f="type"><option value="material"' + (lab ? '' : ' selected') + '>Material</option><option value="labor"' + (lab ? ' selected' : '') + '>Labor</option></select></td>' +
+      '<td><input class="compact-input" type="text" data-f="description" value="' + esc(it.description || "") + '" placeholder="Description"></td>' +
+      '<td style="width:84px;"><input class="compact-input" type="number" step="any" data-f="qty" value="' + esc(String(it.qty)) + '"></td>' +
+      '<td style="width:64px;">' + (lab ? '<span style="color:var(--ink-soft);">hr</span>' : '<input class="compact-input" type="text" data-f="unit" value="' + esc(it.unit || "") + '">') + '</td>' +
+      '<td style="width:104px;"><input class="compact-input" type="number" step="any" data-f="unitCost" value="' + esc(String(it.unitCost)) + '"></td>' +
+      '<td style="width:78px;"><input class="compact-input" type="number" step="any" data-f="markup" placeholder="' + defMk + '" value="' + ((it.markup === null || it.markup === undefined || it.markup === "") ? "" : esc(String(it.markup))) + '"></td>' +
+      '<td class="num" style="width:104px;" data-ext="' + it.id + '">' + money(n.ext) + '</td>' +
+      '<td class="num" style="width:104px;" data-price="' + it.id + '">' + money(n.price) + '</td>' +
+      '<td style="width:30px;"><button class="miniremove" data-act="delitem" title="Remove line">✕</button></td></tr>';
+  }
+  function subHtml(u, e){
+    return '<div class="est-sub" data-uid="' + u.id + '">' +
+      '<div class="est-sub-head"><input class="est-title" data-f="subtitle" value="' + esc(u.title || "") + '" placeholder="Subsection">' +
+        '<span class="mono" style="font-weight:700;" data-subtotal="' + u.id + '">' + money(estCalc(u.items, e).total) + '</span>' +
+        '<button class="est-mv" data-act="subup" title="Move up">▲</button><button class="est-mv" data-act="subdn" title="Move down">▼</button>' +
+        '<button class="miniremove" data-act="delsub">Remove</button></div>' +
+      (u.items.length ? '<table class="est-tbl"><thead><tr><th></th><th>Type</th><th>Description</th><th>Qty</th><th>Unit</th><th>Unit cost</th><th>Markup %</th><th class="num">Cost</th><th class="num">Price</th><th></th></tr></thead><tbody>' +
+        u.items.map(function(it){ return itemRowHtml(it, e); }).join("") + '</tbody></table>' : '<div class="note-empty">No lines yet.</div>') +
+      '<div class="inline-row" style="margin-top:6px;"><button class="add-row-btn" data-act="addmat">+ Material</button><button class="add-row-btn" data-act="addlab">+ Labor</button></div></div>';
+  }
+  function secHtml(sec, e){
+    var col = !!estCollapsed[sec.id];
+    return '<div class="est-sec" data-sid="' + sec.id + '"><div class="est-sec-head">' +
+      '<button class="btn small" data-act="togsec">' + (col ? "▶" : "▼") + '</button>' +
+      '<input class="est-title" data-f="sectitle" value="' + esc(sec.title || "") + '" placeholder="Section">' +
+      '<span class="mono" style="font-weight:700;font-size:15px;" data-sectotal="' + sec.id + '">' + money(estCalc(estFlat([sec]), e).total) + '</span>' +
+      '<button class="est-mv" data-act="secup" title="Move up">▲</button><button class="est-mv" data-act="secdn" title="Move down">▼</button>' +
+      '<button class="miniremove" data-act="delsec">Remove</button></div>' +
+      (col ? '' : sec.subsections.map(function(u){ return subHtml(u, e); }).join("") + '<div style="padding:0 12px 12px;"><button class="add-row-btn" data-act="addsub">+ Add subsection</button></div>') + '</div>';
+  }
+  function renderEstimate(){
+    var c = estCard(), v = estVer(); if(!c || !v) return;
+    var e = ensureEstimate(v), host = document.getElementById("estimateScreen");
+    var oldBody = host.querySelector(".est-body"), scroll = oldBody ? oldBody.scrollTop : 0;
+    var t = estCalc(estFlat(e.sections), e);
+    host.innerHTML =
+      '<div class="est-head"><button class="btn" data-act="back">← Back to card</button>' +
+        '<h2>Estimate — ' + esc(c.projectName || "Untitled") + ' <span class="mono" style="font-weight:400;color:var(--ink-soft);">' + esc(c.id) + ' · V' + (estCtx.vi + 1) + (v.stage ? " · " + esc(v.stage) : "") + '</span></h2>' +
+        '<button class="btn small" data-act="toggleimport">⬆ Import JSON</button><button class="btn small" data-act="exportjson">⬇ Export JSON</button></div>' +
+      '<div class="est-set">' +
+        '<div class="field"><label>Tax rate %</label><input type="number" step="any" style="width:90px;" data-f="taxRate" value="' + esc(String(e.taxRate)) + '"></div>' +
+        '<label class="checkline" style="padding-bottom:9px;"><input type="checkbox" data-f="taxLabor" ' + (e.taxLabor ? "checked" : "") + '> Tax labor too</label>' +
+        '<div class="field"><label>Default material markup %</label><input type="number" step="any" style="width:90px;" data-f="materialMarkup" value="' + esc(String(e.materialMarkup)) + '"></div>' +
+        '<div class="field"><label>Default labor markup %</label><input type="number" step="any" style="width:90px;" data-f="laborMarkup" value="' + esc(String(e.laborMarkup)) + '"></div>' +
+        '<div style="font-size:11.5px;color:var(--ink-soft);padding-bottom:9px;max-width:340px;">Markup is added on top of cost. Tax is figured on cost. Leave a line\'s markup blank to use the default.</div></div>' +
+      (estImportOpen ? '<div class="est-import"><div style="font-size:12.5px;margin-bottom:6px;">Paste the JSON Claude gave you, or choose a .json file.</div>' +
+        '<textarea id="estImportText" placeholder=\'{"sections":[…]}\'></textarea>' +
+        '<div class="inline-row" style="margin-top:6px;"><input type="file" id="estImportFile" accept=".json,application/json">' +
+          '<label class="checkline"><input type="radio" name="estMode" value="append" checked> Add to this estimate</label>' +
+          '<label class="checkline"><input type="radio" name="estMode" value="replace"> Replace this estimate</label>' +
+          '<button class="btn small primary" data-act="doimport">Import</button>' +
+          '<button class="btn small" data-act="copyprompt">📋 Copy instructions for Claude</button></div></div>' : '') +
+      '<div class="est-body">' + (e.sections.length ? e.sections.map(function(sec){ return secHtml(sec, e); }).join("") : '<div class="note-empty">No sections yet. Add one below, or import a quote from Claude.</div>') +
+        '<button class="add-row-btn" data-act="addsec">+ Add section</button></div>' +
+      '<div class="est-foot"><div>Materials<strong id="estT_mat">' + money(t.matPrice) + '</strong></div><div>Labor<strong id="estT_lab">' + money(t.labPrice) + '</strong></div>' +
+        '<div>Tax<strong id="estT_tax">' + money(t.tax) + '</strong></div><div>Total<strong id="estT_total">' + money(t.total) + '</strong></div><div>Labor hours<strong id="estT_hours">' + r2(t.hours) + '</strong></div>' +
+        '<div style="margin-left:auto;font-size:11.5px;">Totals feed this version\'s Material / Labor / Tax / Hours automatically.</div></div>';
+    var nb = host.querySelector(".est-body"); if(nb) nb.scrollTop = scroll;
+    if(estFocusId){ var f = host.querySelector('[data-iid="' + estFocusId + '"] [data-f="description"]'); if(f) f.focus(); estFocusId = null; }
+  }
+  function estFind(el){
+    var v = estVer(), e = v.estimate, r = {e:e};
+    var s = el.closest("[data-sid]"), u = el.closest("[data-uid]"), i = el.closest("[data-iid]");
+    if(s) r.sec = e.sections.find(function(x){ return x.id === s.dataset.sid; });
+    if(u && r.sec) r.sub = r.sec.subsections.find(function(x){ return x.id === u.dataset.uid; });
+    if(i && r.sub) r.item = r.sub.items.find(function(x){ return x.id === i.dataset.iid; });
+    return r;
+  }
+  function moveIn(arr, obj, dir){
+    var i = arr.indexOf(obj), j = i + dir;
+    if(i < 0 || j < 0 || j >= arr.length) return;
+    arr.splice(i, 1); arr.splice(j, 0, obj);
+  }
+  function estNormItem(it){
+    var lab = String(it.type || "").toLowerCase().indexOf("lab") === 0;
+    function num(){ for(var k = 0; k < arguments.length; k++){ var x = it[arguments[k]]; if(x !== undefined && x !== null && x !== "" && !isNaN(Number(x))) return Number(x); } return 0; }
+    var mk = (it.markup === undefined || it.markup === null || it.markup === "" || isNaN(Number(it.markup))) ? null : Number(it.markup);
+    return {id:uid(), type: lab ? "labor" : "material", description:String(it.description || it.name || ""), qty:num("qty","quantity","hours"), unit: lab ? "hr" : String(it.unit || "ea"), unitCost:num("unitCost","cost","rate"), markup:mk};
+  }
+  function estParseImport(txt){
+    var data = JSON.parse(txt);
+    var secs = Array.isArray(data) ? data : (data.sections || (data.items ? [{title:"Imported", items:data.items}] : null));
+    if(!Array.isArray(secs)) throw new Error('Expected "sections" (or "items") in the JSON');
+    var out = secs.map(function(sc, i){
+      var subs = Array.isArray(sc.subsections) ? sc.subsections : (Array.isArray(sc.items) ? [{title:sc.title || "Items", items:sc.items}] : []);
+      return {id:uid(), title:String(sc.title || ("Section " + (i + 1))), subsections: subs.map(function(u, j){
+        return {id:uid(), title:String(u.title || ("Subsection " + (j + 1))), items:(Array.isArray(u.items) ? u.items : []).map(estNormItem)};
+      })};
+    });
+    return {sections:out, data:(Array.isArray(data) ? {} : data)};
+  }
+  function estDoImport(host){
+    var txt = (host.querySelector("#estImportText").value || "").trim();
+    if(!txt){ toast("Paste the JSON first, or choose a file"); return; }
+    var parsed;
+    try{ parsed = estParseImport(txt); }catch(err){ toast("Couldn't read that JSON: " + err.message); return; }
+    var e = ensureEstimate(estVer());
+    var mode = (host.querySelector('input[name="estMode"]:checked') || {}).value;
+    if(mode === "replace"){
+      e.sections = parsed.sections;
+      var d = parsed.data;
+      if(typeof d.taxRate === "number") e.taxRate = d.taxRate;
+      if(typeof d.taxLabor === "boolean") e.taxLabor = d.taxLabor;
+      if(typeof d.materialMarkup === "number") e.materialMarkup = d.materialMarkup;
+      if(typeof d.laborMarkup === "number") e.laborMarkup = d.laborMarkup;
+    } else {
+      e.sections = e.sections.concat(parsed.sections);
+      if(typeof parsed.data.taxRate === "number" && !e.taxRate) e.taxRate = parsed.data.taxRate;
+    }
+    estImportOpen = false;
+    estSaveSoon(); renderEstimate();
+    toast("Imported " + parsed.sections.length + " section" + (parsed.sections.length === 1 ? "" : "s"));
+  }
+  (function wireEstimate(){
+    var host = document.getElementById("estimateScreen");
+    host.addEventListener("click", function(ev){
+      var b = ev.target.closest("[data-act]"); if(!b) return;
+      var act = b.dataset.act, v = estVer(); if(!v) return;
+      var e = ensureEstimate(v), r = estFind(b);
+      if(act === "back"){ closeEstimate(); return; }
+      if(act === "toggleimport"){ estImportOpen = !estImportOpen; renderEstimate(); return; }
+      if(act === "exportjson"){
+        var blob = new Blob([JSON.stringify({taxRate:e.taxRate, taxLabor:e.taxLabor, materialMarkup:e.materialMarkup, laborMarkup:e.laborMarkup,
+          sections:e.sections.map(function(sec){ return {title:sec.title, subsections:sec.subsections.map(function(u){ return {title:u.title, items:u.items.map(function(it){
+            var o = {type:it.type, description:it.description, qty:it.qty, unit:it.unit, unitCost:it.unitCost}; if(it.markup !== null && it.markup !== undefined) o.markup = it.markup; return o; })}; })}; })}, null, 2)], {type:"application/json"});
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "estimate-" + estCtx.cardId + "-V" + (estCtx.vi + 1) + ".json"; a.click(); URL.revokeObjectURL(a.href);
+        return;
+      }
+      if(act === "copyprompt"){
+        var txt = CONFIG.ESTIMATE_CLAUDE_PROMPT;
+        (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function(){ toast("Instructions copied — paste them to Claude"); }).catch(function(){
+          var ta = host.querySelector("#estImportText"); if(ta){ ta.value = txt; ta.select(); } toast("Select and copy the instructions shown in the box");
+        });
+        return;
+      }
+      if(act === "doimport"){ estDoImport(host); return; }
+      var changed = true;
+      if(act === "addsec") e.sections.push({id:uid(), title:"Section " + (e.sections.length + 1), subsections:[{id:uid(), title:"Subsection 1", items:[]}]});
+      else if(act === "togsec"){ estCollapsed[r.sec.id] = !estCollapsed[r.sec.id]; changed = false; }
+      else if(act === "delsec"){ if(estFlat([r.sec]).length && !confirm("Remove this section and its lines?")) return; e.sections.splice(e.sections.indexOf(r.sec), 1); }
+      else if(act === "secup") moveIn(e.sections, r.sec, -1);
+      else if(act === "secdn") moveIn(e.sections, r.sec, 1);
+      else if(act === "addsub") r.sec.subsections.push({id:uid(), title:"Subsection " + (r.sec.subsections.length + 1), items:[]});
+      else if(act === "delsub"){ if(r.sub.items.length && !confirm("Remove this subsection and its lines?")) return; r.sec.subsections.splice(r.sec.subsections.indexOf(r.sub), 1); }
+      else if(act === "subup") moveIn(r.sec.subsections, r.sub, -1);
+      else if(act === "subdn") moveIn(r.sec.subsections, r.sub, 1);
+      else if(act === "addmat" || act === "addlab"){
+        var lab = act === "addlab", it = {id:uid(), type: lab ? "labor" : "material", description:"", qty:1, unit: lab ? "hr" : "ea", unitCost:0, markup:null};
+        r.sub.items.push(it); estFocusId = it.id;
+      }
+      else if(act === "delitem") r.sub.items.splice(r.sub.items.indexOf(r.item), 1);
+      else if(act === "itemup") moveIn(r.sub.items, r.item, -1);
+      else if(act === "itemdn") moveIn(r.sub.items, r.item, 1);
+      else changed = false;
+      if(changed) estSaveSoon();
+      renderEstimate();
+    });
+    function onField(ev){
+      var el = ev.target.closest("[data-f]"); if(!el || !estVer()) return;
+      var r = estFind(el), f = el.dataset.f, e = r.e;
+      var val = el.type === "checkbox" ? el.checked : el.value;
+      var rerender = false;
+      if(f === "sectitle" && r.sec) r.sec.title = val;
+      else if(f === "subtitle" && r.sub) r.sub.title = val;
+      else if(r.item){
+        var it = r.item;
+        if(f === "type"){ it.type = val; it.unit = val === "labor" ? "hr" : (it.unit && it.unit !== "hr" ? it.unit : "ea"); rerender = true; }
+        else if(f === "description") it.description = val;
+        else if(f === "unit") it.unit = val;
+        else if(f === "qty" || f === "unitCost") it[f] = parseFloat(val) || 0;
+        else if(f === "markup") it.markup = (val === "" || isNaN(parseFloat(val))) ? null : parseFloat(val);
+      }
+      else if(f === "taxRate" || f === "materialMarkup" || f === "laborMarkup") e[f] = parseFloat(val) || 0;
+      else if(f === "taxLabor") e.taxLabor = !!val;
+      if(ev.type === "change" && (f === "materialMarkup" || f === "laborMarkup" || f === "type")) rerender = true;
+      estSaveSoon();
+      if(rerender) renderEstimate(); else estRefresh();
+    }
+    host.addEventListener("input", onField);
+    host.addEventListener("change", function(ev){
+      if(ev.target.id === "estImportFile"){
+        var file = ev.target.files[0]; if(!file) return;
+        var fr = new FileReader();
+        fr.onload = function(){ host.querySelector("#estImportText").value = fr.result; };
+        fr.readAsText(file); return;
+      }
+      onField(ev);
+    });
+  })();
 
   /* ---------------- Suggestion box ---------------- */
   var suggestions = [], sgShowDone = false;
