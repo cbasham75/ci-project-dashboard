@@ -306,6 +306,14 @@
     padding:14px 20px;border-top:1px solid var(--line-soft);
     display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;
   }
+  th.sortable{cursor:pointer;user-select:none;white-space:nowrap;}
+  th.sortable:hover{color:var(--ink);}
+  .sg-row{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line-soft);}
+  .sg-row.done .sg-text{text-decoration:line-through;color:var(--ink-soft);}
+  .sg-text{flex:1;white-space:pre-wrap;word-break:break-word;}
+  .sg-meta{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .sg-btn{display:inline-flex;align-items:center;gap:4px;}
+  .sg-btn svg{width:17px;height:17px;}
   .dz{border:2px dashed #b9c0c4;border-radius:10px;padding:18px;text-align:center;cursor:pointer;color:var(--ink-soft);font-size:13px;margin-bottom:10px;}
   .dz.over{background:rgba(60,120,200,.08);border-color:#3c78c8;}
   .doc-row{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);flex-wrap:wrap;}
@@ -483,7 +491,10 @@
     <div class="brand-block">
       <div class="brand">
         <span class="mark">🗂️ CI Project Bashboard</span>
-        <span class="tag">Opportunity → Estimate → Project → Invoice</span>
+        <button class="btn ghost small sg-btn" id="suggestBtn" title="Suggestion box" aria-label="Suggestion box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l2-5h14l2 5v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 9h18"/><path d="M9 13h6"/></svg>
+          <span id="suggestCount" style="font-size:11px;font-weight:700;"></span>
+        </button>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn primary" id="newCardBtn">+ New Opportunity</button>
@@ -691,6 +702,9 @@
   </div>
 </div>
 
+<div class="overlay" id="suggestOverlay" style="z-index:60;">
+  <div class="modal" id="suggestModal" style="max-width:560px;"></div>
+</div>
 <div class="overlay" id="docsOverlay" style="z-index:65;">
   <div class="modal wide" id="docsModal"></div>
 </div>
@@ -703,6 +717,16 @@
 <script>
 (function(){
   "use strict";
+
+  /* ---------------- CONFIG: labels, lists and site-specific values live here ---------------- */
+  var CONFIG = {
+    // Site owner(s): can manage the whole suggestion list. (Server-side policy lives in the suggestions table.)
+    OWNER_EMAILS: ["cbasham@cablinginnovations.net"],
+    SUGGESTION_PROMPT: "Got an idea? Tell us where it applies (tab, card, tile, calendar…) and what you'd like changed.",
+    SUGGESTION_PLACEHOLDER: "e.g. “Estimating tab: add a field for …”",
+    BILLING_REPORT_STATUSES: ["project_created","project_in_progress","project_complete","final_invoiced"],
+    DOC_INCLUDED_GB: 100
+  };
 
   /* ---------------- Config ---------------- */
   var STORE_KEY = "ci_dashboard_cards_v1";
@@ -2126,6 +2150,7 @@
     {key:"pipeline",        label:"Pipeline"},
     {key:"win_loss",        label:"Win / Loss"},
     {key:"change_orders",   label:"Change Orders"},
+    {key:"billing",         label:"Billing"},
     {key:"customers",       label:"Customers"}
   ];
 
@@ -2162,8 +2187,119 @@
     else if(activeReport === "pipeline") host.innerHTML = pipelineReportHtml();
     else if(activeReport === "win_loss") host.innerHTML = winLossReportHtml();
     else if(activeReport === "change_orders") host.innerHTML = changeOrdersReportHtml();
+    else if(activeReport === "billing") host.innerHTML = billingReportHtml();
     else if(activeReport === "customers") host.innerHTML = customersReportHtml();
     wireReportInteractions(host);
+    applyReportSort(host);
+  }
+
+  /* ---- Sortable report columns: click a header to sort, click again to reverse ---- */
+  var reportSort = {}; // "<report>:<table index>" -> {col, dir}
+  function sortKeyOf(td){
+    var raw = (td.getAttribute("data-sort") != null ? td.getAttribute("data-sort") : td.textContent).trim();
+    if(raw === "" || raw === "—" || raw === "-") return {empty:true};
+    var num = raw.replace(/[$,%\s]/g, "");
+    if(/^[-+]?\d*\.?\d+$/.test(num)) return {n:parseFloat(num)};
+    if(/^\d{4}-\d{2}-\d{2}/.test(raw) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(raw)){
+      var t = Date.parse(raw); if(!isNaN(t)) return {n:t};
+    }
+    for(var i = 0; i < COLUMNS.length; i++){
+      var lbl = stageLabel(COLUMNS[i].key);
+      if(lbl && raw.indexOf(lbl) === 0) return {n:i, tie:raw.toLowerCase()};
+    }
+    return {t:raw.toLowerCase()};
+  }
+  function applyReportSort(host){
+    host.querySelectorAll("table.report-table").forEach(function(tbl, ti){
+      var key = activeReport + ":" + ti, st = reportSort[key];
+      var ths = Array.from(tbl.querySelectorAll("thead th"));
+      ths.forEach(function(th, ci){
+        th.classList.add("sortable");
+        th.title = "Click to sort";
+        if(st && st.col === ci) th.insertAdjacentHTML("beforeend", '<span class="arr">' + (st.dir > 0 ? " ▲" : " ▼") + '</span>');
+        th.addEventListener("click", function(){
+          var cur = reportSort[key];
+          reportSort[key] = (cur && cur.col === ci) ? {col:ci, dir:-cur.dir} : {col:ci, dir:1};
+          renderReportContent();
+        });
+      });
+      if(!st) return;
+      var tb = tbl.querySelector("tbody"); if(!tb) return;
+      var rows = Array.from(tb.querySelectorAll("tr"));
+      if(rows.length < 2 || rows[0].children.length < ths.length) return;
+      var keyed = rows.map(function(r, i){ return {r:r, i:i, k:sortKeyOf(r.children[st.col])}; });
+      keyed.sort(function(a, b){
+        if(a.k.empty || b.k.empty) return a.k.empty && b.k.empty ? a.i - b.i : (a.k.empty ? 1 : -1); // blanks always last
+        var c;
+        if(a.k.n !== undefined && b.k.n !== undefined){ c = a.k.n - b.k.n; if(!c && a.k.tie) c = a.k.tie < b.k.tie ? -1 : a.k.tie > b.k.tie ? 1 : 0; }
+        else c = String(a.k.t !== undefined ? a.k.t : a.k.n).localeCompare(String(b.k.t !== undefined ? b.k.t : b.k.n), undefined, {numeric:true});
+        return c ? c * st.dir : a.i - b.i;
+      });
+      keyed.forEach(function(x){ tb.appendChild(x.r); });
+    });
+  }
+
+  /* ---- Billing report ---- */
+  function billingRowData(c){
+    var contract = Number(c.contractAmount) || 0;
+    var cos = c.changeOrders || [];
+    var coApproved = cos.filter(function(co){ return co.approved; }).reduce(function(s, co){ return s + (Number(co.amount) || 0); }, 0);
+    var coUnbilled = cos.filter(function(co){ return co.approved && !co.billed; }).reduce(function(s, co){ return s + (Number(co.amount) || 0); }, 0);
+    var total = contract + coApproved;
+    var today = formatDateISO(new Date());
+    var items = (c.pm && c.pm.billing) || [];
+    var schedPct = items.reduce(function(s, b){ return s + (Number(b.percent) || 0); }, 0);
+    var duePct = items.filter(function(b){ return b.date && b.date <= today; }).reduce(function(s, b){ return s + (Number(b.percent) || 0); }, 0);
+    var upcoming = items.map(function(b){ return b.date; }).filter(function(d){ return d && d > today; }).sort()[0] || "";
+    var ap = (c.pm && c.pm.apContact) || {};
+    return {
+      c:c, contract:contract, coApproved:coApproved, coUnbilled:coUnbilled, total:total,
+      pctComplete:Number(c.pm && c.pm.percentComplete) || 0,
+      schedPct:schedPct, schedAmt:total * schedPct / 100, dueAmt:total * duePct / 100, duePct:duePct,
+      unsched:Math.max(0, total * (100 - schedPct) / 100), next:upcoming,
+      ap:[ap.name, ap.email].filter(Boolean).join(" · "),
+      customer:(c.projectCreated && c.projectCreated.winningContractor) || c.projectCustomer || "",
+      pm:(c.projectCreated && c.projectCreated.pmName) || ""
+    };
+  }
+  function billingReportHtml(){
+    var f = reportFilters.billing || (reportFilters.billing = {customer:"", pm:""});
+    var all = cards.filter(function(c){ return CONFIG.BILLING_REPORT_STATUSES.indexOf(c.status) !== -1 && !isArchived(c); }).map(billingRowData);
+    function uniq(k){ return all.map(function(r){ return r[k]; }).filter(Boolean).filter(function(v, i, a){ return a.indexOf(v) === i; }).sort(); }
+    var rows = all.filter(function(r){ return (!f.customer || r.customer === f.customer) && (!f.pm || r.pm === f.pm); });
+    function sum(k){ return rows.reduce(function(s, r){ return s + r[k]; }, 0); }
+    function sel(id, label, list, val){
+      return '<div class="field"><label>' + label + '</label><select id="' + id + '"><option value="">All</option>' +
+        list.map(function(v){ return '<option' + (v === val ? " selected" : "") + '>' + esc(v) + '</option>'; }).join("") + '</select></div>';
+    }
+    var body = rows.map(function(r){
+      return '<tr data-open-card="' + r.c.id + '">' +
+        '<td><strong>' + esc(r.c.projectName || "Untitled") + '</strong><div class="mono" style="font-size:11px;color:var(--ink-soft);">' + esc(r.c.id) + '</div></td>' +
+        '<td>' + esc(r.customer || "—") + '</td>' +
+        '<td>' + esc(r.pm || "—") + '</td>' +
+        '<td>' + esc(stageLabel(r.c.status)) + '</td>' +
+        '<td class="num">' + money(r.contract) + '</td>' +
+        '<td class="num">' + money(r.coApproved) + '</td>' +
+        '<td class="num">' + money(r.total) + '</td>' +
+        '<td class="num">' + r.pctComplete + '%</td>' +
+        '<td class="num">' + r.schedPct + '%</td>' +
+        '<td class="num">' + money(r.dueAmt) + '</td>' +
+        '<td class="num">' + money(r.unsched) + '</td>' +
+        '<td class="num">' + money(r.coUnbilled) + '</td>' +
+        '<td data-sort="' + esc(r.next) + '">' + esc(r.next || "—") + '</td>' +
+        '<td>' + esc(r.ap || "—") + '</td>' +
+      '</tr>';
+    }).join("");
+    return '<div class="report-filters">' + sel("billCustFilter", "Customer", uniq("customer"), f.customer) + sel("billPmFilter", "PM", uniq("pm"), f.pm) + '</div>' +
+      '<div class="report-summary">' +
+        '<div class="stat"><div class="label">Projects</div><div class="num">' + rows.length + '</div></div>' +
+        '<div class="stat"><div class="label">Total contract + approved COs</div><div class="num">' + money(sum("total")) + '</div></div>' +
+        '<div class="stat"><div class="label">Due to date</div><div class="num">' + money(sum("dueAmt")) + '</div></div>' +
+        '<div class="stat"><div class="label">Approved COs not billed</div><div class="num">' + money(sum("coUnbilled")) + '</div></div>' +
+      '</div>' +
+      '<div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>Project</th><th>Customer</th><th>PM</th><th>Status</th><th class="num">Contract</th><th class="num">Approved COs</th><th class="num">Total</th><th class="num">% complete</th><th class="num">% scheduled</th><th class="num">Due to date</th><th class="num">Not yet scheduled</th><th class="num">COs not billed</th><th>Next billing</th><th>AP contact</th></tr></thead>' +
+      '<tbody>' + (body || '<tr><td colspan="14" style="color:var(--ink-soft);">No projects in billing stages.</td></tr>') + '</tbody></table></div>' +
+      '<div class="note-empty" style="margin-top:8px;">Due to date = scheduled billing items dated today or earlier, as a share of contract + approved change orders. Click any column heading to sort.</div>';
   }
 
   function estimatingStageLabel(c){
@@ -2418,6 +2554,10 @@
     if(cs) cs.addEventListener("change", function(){ reportFilters.change_orders.sent = cs.value; renderReportContent(); });
     var cb = host.querySelector("#coFilterBilled");
     if(cb) cb.addEventListener("change", function(){ reportFilters.change_orders.billed = cb.value; renderReportContent(); });
+    var bc = host.querySelector("#billCustFilter");
+    if(bc) bc.addEventListener("change", function(){ reportFilters.billing.customer = bc.value; renderReportContent(); });
+    var bp = host.querySelector("#billPmFilter");
+    if(bp) bp.addEventListener("change", function(){ reportFilters.billing.pm = bp.value; renderReportContent(); });
     var cg = host.querySelector("#customerGroupBy");
     if(cg) cg.addEventListener("change", function(){ reportFilters.customers.groupBy = cg.value; renderReportContent(); });
   }
@@ -3930,7 +4070,7 @@
   /* ---------------- Documents (Supabase Storage) ---------------- */
   var DOC_TAGS = ["Drawings","Specs","Addenda","Submittals","Contract","Photos","Other"];
   var DOC_BUCKET = "documents";
-  var DOC_INCLUDED_GB = 100;
+  var DOC_INCLUDED_GB = CONFIG.DOC_INCLUDED_GB;
   var docMaxMb = 1024;
   var docsCtx = null, docsList = [], docsTag = "Drawings";
   var uploadJobs = [];
@@ -4131,6 +4271,79 @@
     }, 5000);
   }
 
+  /* ---------------- Suggestion box ---------------- */
+  var suggestions = [], sgShowDone = false;
+  function myEmail(){ return ((currentSession && currentSession.user && currentSession.user.email) || "").toLowerCase(); }
+  function isOwner(){ return CONFIG.OWNER_EMAILS.map(function(e){ return e.toLowerCase(); }).indexOf(myEmail()) !== -1; }
+  async function loadSuggestions(){
+    if(!supabaseClient) return;
+    var r = await supabaseClient.from("suggestions").select("*").order("created_at", {ascending:false});
+    if(r.error){ toast("Couldn't load suggestions: " + r.error.message); return; }
+    suggestions = r.data || [];
+    updateSuggestCount();
+  }
+  function updateSuggestCount(){
+    var el = document.getElementById("suggestCount");
+    if(!el) return;
+    var n = suggestions.filter(function(x){ return !x.done; }).length;
+    el.textContent = (isOwner() && n) ? String(n) : "";
+  }
+  function renderSuggestions(){
+    var m = document.getElementById("suggestModal");
+    var open = suggestions.filter(function(x){ return !x.done; });
+    var done = suggestions.filter(function(x){ return x.done; });
+    var owner = isOwner(), me = myEmail();
+    function row(x){
+      var canDel = owner || (x.author_email || "").toLowerCase() === me;
+      return '<div class="sg-row' + (x.done ? " done" : "") + '">' +
+        '<input type="checkbox" data-sg-done="' + esc(x.id) + '" ' + (x.done ? "checked " : "") + (owner ? "" : "disabled title=\"Only the site owner can check these off\" ") + '>' +
+        '<div class="sg-text">' + esc(x.text) + '<div class="sg-meta">' + esc(x.author_name || "Unknown") + ' · ' + new Date(x.created_at).toLocaleDateString() + '</div></div>' +
+        (canDel ? '<button class="miniremove" data-sg-del="' + esc(x.id) + '">Delete</button>' : '') + '</div>';
+    }
+    m.innerHTML =
+      '<div class="modal-head"><div><h2>Suggestion box</h2><div class="sub" style="font-family:inherit;">' + esc(CONFIG.SUGGESTION_PROMPT) + '</div></div>' +
+      '<button class="close-x" id="sgClose">✕</button></div>' +
+      '<div class="modal-body">' +
+        '<div class="field"><textarea id="sgText" style="min-height:70px;" placeholder="' + esc(CONFIG.SUGGESTION_PLACEHOLDER) + '"></textarea></div>' +
+        '<button class="btn small primary" id="sgAdd">Add suggestion</button>' +
+        '<div style="margin-top:14px;">' + (open.length ? open.map(row).join("") : '<div class="note-empty">No open suggestions.</div>') + '</div>' +
+        (done.length ? '<button class="add-row-btn" id="sgToggleDone" style="margin-top:10px;">' + (sgShowDone ? "▼ Hide" : "▶ Show") + ' completed (' + done.length + ')</button>' + (sgShowDone ? '<div>' + done.map(row).join("") + '</div>' : '') : '') +
+      '</div>';
+    m.querySelector("#sgClose").addEventListener("click", function(){ closeOverlay("suggestOverlay"); });
+    var ta = m.querySelector("#sgText");
+    async function add(){
+      var text = ta.value.trim();
+      if(!text) return;
+      var r = await supabaseClient.from("suggestions").insert({text:text, author_name:getUser() || "Unknown", author_email:myEmail()});
+      if(r && r.error){ toast("Couldn't save: " + r.error.message); return; }
+      toast("Thanks — suggestion added");
+      await loadSuggestions(); renderSuggestions();
+    }
+    m.querySelector("#sgAdd").addEventListener("click", add);
+    ta.addEventListener("keydown", function(e){ if(e.key === "Enter" && (e.ctrlKey || e.metaKey)) add(); });
+    m.querySelectorAll("[data-sg-done]").forEach(function(cb){
+      cb.addEventListener("change", async function(){
+        var r = await supabaseClient.from("suggestions").update({done:cb.checked, done_at:cb.checked ? new Date().toISOString() : null, done_by:getUser() || ""}).eq("id", cb.dataset.sgDone);
+        if(r && r.error){ toast("Couldn't update: " + r.error.message); }
+        await loadSuggestions(); renderSuggestions();
+      });
+    });
+    m.querySelectorAll("[data-sg-del]").forEach(function(b){
+      b.addEventListener("click", async function(){
+        if(!confirm("Delete this suggestion?")) return;
+        var r = await supabaseClient.from("suggestions").delete().eq("id", b.dataset.sgDel);
+        if(r && r.error){ toast("Couldn't delete: " + r.error.message); }
+        await loadSuggestions(); renderSuggestions();
+      });
+    });
+    var tg = m.querySelector("#sgToggleDone");
+    if(tg) tg.addEventListener("click", function(){ sgShowDone = !sgShowDone; renderSuggestions(); });
+  }
+  document.getElementById("suggestBtn").addEventListener("click", async function(){
+    renderSuggestions(); openOverlay("suggestOverlay");
+    await loadSuggestions(); renderSuggestions();
+  });
+
   /* ---------------- Quick-add company ---------------- */
   var quickCompanyCb = null;
   function openQuickCompany(cb){
@@ -4218,7 +4431,9 @@
       '<p class="section-title" style="margin-top:20px;">Documents</p>' +
       '<div class="inline-row"><div class="field" style="flex:0 0 200px;margin:0;"><label>Max file size (MB)</label><input type="number" min="1" id="st_docMax" value="' + docMaxMb + '"></div>' +
       '<button class="btn small primary" id="st_docMaxSave">Save</button></div>' +
-      '<div class="note-empty" style="margin-top:6px;">Storage used: <strong>' + fmtSize(b) + '</strong> of ' + DOC_INCLUDED_GB + ' GB included. Files bigger than the project-wide Supabase upload limit will still be refused by Supabase — raise it under Storage → Settings in the Supabase dashboard.</div>';
+      '<div style="margin-top:10px;font-size:12px;color:var(--ink-soft);">Storage used: <strong>' + fmtSize(b) + '</strong> of ' + DOC_INCLUDED_GB + ' GB included (' + (b / (DOC_INCLUDED_GB * 1073741824) * 100).toFixed(1) + '%)' +
+      '<div class="meter" style="height:10px;"><div style="width:' + Math.min(100, b / (DOC_INCLUDED_GB * 1073741824) * 100).toFixed(1) + '%"></div></div></div>' +
+      '<div class="note-empty" style="margin-top:6px;">Files bigger than the project-wide Supabase upload limit will still be refused by Supabase — raise it under Storage → Settings in the Supabase dashboard.</div>';
     document.getElementById("st_docMaxSave").addEventListener("click", async function(){
       var mb = Number(document.getElementById("st_docMax").value);
       if(!(mb > 0)){ toast("Enter a size in MB"); return; }
@@ -4365,6 +4580,7 @@
     recordActivity();
     showApp();
     initApp();
+    loadSuggestions().catch(function(){});
   }
   function onSignedOut(){
     currentSession = null;
