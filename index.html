@@ -589,12 +589,13 @@
       </div>
       <div class="field">
         <label>Project customer (who the work is for)</label>
-        <input type="text" id="f_projectCustomer">
+        <div class="inline-row"><input type="text" id="f_projectCustomer" style="flex:1;"><button type="button" class="add-row-btn" id="quickCoCustBtn" title="Save this customer to the Library (opens a short form)">＋ Add to Library</button></div>
       </div>
       <div class="field">
         <label>Contractor(s)</label>
         <div id="directCustomersContainer"></div>
         <button type="button" class="add-row-btn" id="addDirectCustomerBtn">+ Add contractor</button>
+        <button type="button" class="add-row-btn" id="quickCoFormBtn" title="Add a new company to the Library and use it here">＋ New company in Library</button>
       </div>
       <div class="field">
         <label>Divisions</label>
@@ -750,13 +751,13 @@
     BILLING_REPORT_STATUSES: ["project_created","project_in_progress","project_complete","final_invoiced"],
     DOC_INCLUDED_GB: 100,
     // Estimate page defaults (markup is a percent added on top of cost; tax is a percent of cost)
-    ESTIMATE_DEFAULTS: {taxRate:0, taxLabor:false, materialMarkup:30, laborMarkup:100},
+    ESTIMATE_DEFAULTS: {taxRate:0, materialMarkup:30, laborMarkup:100},
     ESTIMATE_CLAUDE_PROMPT: 'Return the estimate as ONLY a JSON object (no commentary) in exactly this shape:\n' +
       '{"taxRate": 9.75, "sections": [{"title": "Section name", "subsections": [{"title": "Subsection name", "items": [' +
       '{"type": "material", "description": "Cat6A plenum cable, 1000 ft box", "qty": 12, "unit": "box", "unitCost": 285.00}, ' +
       '{"type": "labor", "description": "Pull and terminate drops", "qty": 120, "unitCost": 65}]}]}]}\n' +
       'Rules: type is "material" or "labor". unitCost is OUR cost before markup. For labor, qty is HOURS and unitCost is the hourly cost rate. ' +
-      'An optional per-line "markup" (percent) overrides the default markup. An optional "taxable": false marks a line as tax-exempt. Leave out taxRate if unknown.'
+      'An optional per-line "markup" (percent) overrides the default markup. An optional "taxable": false marks a material line as tax-exempt. Labor is never taxed. Leave out taxRate if unknown.'
   };
 
   /* ---------------- Config ---------------- */
@@ -2847,6 +2848,18 @@
     formDirectCustomers.push("");
     renderFormDirectCustomers();
   });
+  document.getElementById("quickCoFormBtn").addEventListener("click", function(){
+    openQuickCompany(function(name){
+      var emptyAt = formDirectCustomers.indexOf("");
+      if(emptyAt >= 0) formDirectCustomers[emptyAt] = name; else formDirectCustomers.push(name);
+      renderFormDirectCustomers();
+    }, {type:"Contractor"});
+  });
+  document.getElementById("quickCoCustBtn").addEventListener("click", function(){
+    openQuickCompany(function(name){
+      document.getElementById("f_projectCustomer").value = name;
+    }, {name:document.getElementById("f_projectCustomer").value.trim(), type:"Customer"});
+  });
 
   document.getElementById("newCardBtn").addEventListener("click", function(){
     ["f_projectName","f_address","f_projectCustomer","f_bidDueDate"]
@@ -3143,7 +3156,7 @@
 
       '<div class="field"><label>Project name</label><input type="text" data-path="projectName" value="' + esc(c.projectName) + '"></div>' +
       '<div class="field"><label>Address</label><input type="text" data-path="address" value="' + esc(c.address) + '"></div>' +
-      '<div class="field"><label>Project customer</label><input type="text" data-path="projectCustomer" value="' + esc(c.projectCustomer) + '"></div>' +
+      '<div class="field"><label>Project customer</label><div class="inline-row"><input type="text" style="flex:1;" data-path="projectCustomer" value="' + esc(c.projectCustomer) + '"><button type="button" class="add-row-btn" id="quickCoCustBtnDetail" title="Save this customer to the Library (opens a short form)">＋ Add to Library</button></div></div>' +
       '<div class="field"><label>Contractor(s)</label>' +
         '<div id="directCustomersList">' + directCustomersHtml(c) + '</div>' +
         '<button class="add-row-btn" id="addDirectCustomerBtnDetail">+ Add contractor</button> ' +
@@ -4040,6 +4053,14 @@
         saveCards(); renderBoard(); renderDetail();
       });
     });
+    var qCust = host.querySelector("#quickCoCustBtnDetail");
+    if(qCust) qCust.addEventListener("click", function(){
+      var cur = host.querySelector('[data-path="projectCustomer"]');
+      openQuickCompany(function(name){
+        c.projectCustomer = name;
+        saveCards(); renderBoard(); renderDetail();
+      }, {name:(cur ? cur.value : c.projectCustomer || "").trim(), type:"Customer"});
+    });
     var qDc = host.querySelector("#quickCoDcBtn");
     if(qDc) qDc.addEventListener("click", function(){
       openQuickCompany(function(name){
@@ -4341,7 +4362,7 @@
     if(!v.estimate || typeof v.estimate !== "object") v.estimate = {};
     var e = v.estimate, d = CONFIG.ESTIMATE_DEFAULTS;
     ["taxRate","materialMarkup","laborMarkup"].forEach(function(k){ if(typeof e[k] !== "number") e[k] = d[k]; });
-    if(typeof e.taxLabor !== "boolean") e.taxLabor = d.taxLabor;
+    delete e.taxLabor; // labor is never taxed
     if(!Array.isArray(e.sections)) e.sections = [];
     e.sections.forEach(function(sec){ if(!Array.isArray(sec.subsections)) sec.subsections = []; sec.subsections.forEach(function(u){ if(!Array.isArray(u.items)) u.items = []; }); });
     return e;
@@ -4363,7 +4384,7 @@
     var ext = (Number(it.qty) || 0) * (Number(it.unitCost) || 0);
     var pct = (it.markup === null || it.markup === undefined || it.markup === "") ? (lab ? e.laborMarkup : e.materialMarkup) : (Number(it.markup) || 0);
     var mk = ext * pct / 100;
-    var tax = (it.taxable !== false && (!lab || e.taxLabor)) ? ext * (Number(e.taxRate) || 0) / 100 : 0;
+    var tax = (!lab && it.taxable !== false) ? ext * (Number(e.taxRate) || 0) / 100 : 0;
     return {ext:ext, mk:mk, price:ext + mk, tax:tax, lab:lab};
   }
   function estCalc(items, e){
@@ -4414,6 +4435,7 @@
           var n = estItemNums(it, e);
           setTxt(host, '[data-ext="' + it.id + '"]', money(n.ext));
           setTxt(host, '[data-price="' + it.id + '"]', money(n.price));
+          setTxt(host, '[data-ltax="' + it.id + '"]', n.tax ? money(n.tax) : "—");
         });
       });
     });
@@ -4431,10 +4453,11 @@
       '<td style="width:84px;"><input class="compact-input" type="number" step="any" data-f="qty" value="' + esc(String(it.qty)) + '"></td>' +
       '<td style="width:64px;">' + (lab ? '<span style="color:var(--ink-soft);">hr</span>' : '<input class="compact-input" type="text" data-f="unit" value="' + esc(it.unit || "") + '">') + '</td>' +
       '<td style="width:104px;"><input class="compact-input" type="number" step="any" data-f="unitCost" value="' + esc(String(it.unitCost)) + '"></td>' +
-      '<td style="width:78px;"><input class="compact-input" type="number" step="any" data-f="markup" placeholder="' + defMk + '" value="' + ((it.markup === null || it.markup === undefined || it.markup === "") ? "" : esc(String(it.markup))) + '"></td>' +
-      '<td style="width:38px;text-align:center;"><input type="checkbox" data-f="taxable" title="Taxable" ' + (it.taxable === false ? '' : 'checked') + '></td>' +
+      '<td style="width:78px;"><input class="compact-input" type="number" step="any" data-f="markup" placeholder="' + defMk + '"' + ((it.markup === null || it.markup === undefined || it.markup === "") ? '' : ' style="background:#fff3bf;color:#222;font-weight:700;"') + ' value="' + ((it.markup === null || it.markup === undefined || it.markup === "") ? "" : esc(String(it.markup))) + '"></td>' +
+      '<td style="width:38px;text-align:center;">' + (lab ? '<span style="color:var(--ink-soft);" title="Labor is never taxed">—</span>' : '<input type="checkbox" data-f="taxable" title="Taxable" ' + (it.taxable === false ? '' : 'checked') + '>') + '</td>' +
       '<td class="num" style="width:104px;" data-ext="' + it.id + '">' + money(n.ext) + '</td>' +
       '<td class="num" style="width:104px;" data-price="' + it.id + '">' + money(n.price) + '</td>' +
+      '<td class="num" style="width:84px;color:var(--ink-soft);" data-ltax="' + it.id + '">' + (n.tax ? money(n.tax) : '—') + '</td>' +
       '<td style="width:30px;"><button class="miniremove" data-act="delitem" title="Remove line">✕</button></td></tr>';
   }
   function subHtml(u, e){
@@ -4443,7 +4466,7 @@
         '<span class="mono" style="font-weight:700;" data-subtotal="' + u.id + '">' + money(estCalc(u.items, e).total) + '</span>' +
         '<button class="est-mv" data-act="subup" title="Move up">▲</button><button class="est-mv" data-act="subdn" title="Move down">▼</button>' +
         '<button class="miniremove" data-act="delsub">Remove</button></div>' +
-      (u.items.length ? '<table class="est-tbl"><thead><tr><th></th><th>Type</th><th>Description</th><th>Qty</th><th>Unit</th><th>Unit cost</th><th>Markup %</th><th>Tax</th><th class="num">Cost</th><th class="num">Price</th><th></th></tr></thead><tbody>' +
+      (u.items.length ? '<table class="est-tbl"><thead><tr><th></th><th>Type</th><th>Description</th><th>Qty</th><th>Unit</th><th>Unit cost</th><th>Markup %</th><th>Tax</th><th class="num">Cost</th><th class="num">Price</th><th class="num">Tax $</th><th></th></tr></thead><tbody>' +
         u.items.map(function(it){ return itemRowHtml(it, e); }).join("") + '</tbody></table>' : '<div class="note-empty">No lines yet.</div>') +
       '<div class="inline-row" style="margin-top:6px;"><button class="add-row-btn" data-act="addmat">+ Material</button><button class="add-row-btn" data-act="addlab">+ Labor</button></div></div>';
   }
@@ -4468,10 +4491,10 @@
         '<button class="btn small" data-act="toggleimport">⬆ Import JSON</button><button class="btn small" data-act="exportjson">⬇ Export JSON</button></div>' +
       '<div class="est-set">' +
         '<div class="field"><label>Tax rate %</label><input type="number" step="any" style="width:90px;" data-f="taxRate" value="' + esc(String(e.taxRate)) + '"></div>' +
-        '<label class="checkline" style="padding-bottom:9px;"><input type="checkbox" data-f="taxLabor" ' + (e.taxLabor ? "checked" : "") + '> Tax labor too</label>' +
         '<div class="field"><label>Default material markup %</label><input type="number" step="any" style="width:90px;" data-f="materialMarkup" value="' + esc(String(e.materialMarkup)) + '"></div>' +
         '<div class="field"><label>Default labor markup %</label><input type="number" step="any" style="width:90px;" data-f="laborMarkup" value="' + esc(String(e.laborMarkup)) + '"></div>' +
-        '<div style="font-size:11.5px;color:var(--ink-soft);padding-bottom:9px;max-width:340px;">Markup is added on top of cost. Tax is figured on cost. Leave a line\'s markup blank to use the default.</div></div>' +
+        '<button class="btn small" data-act="clearmk" title="Remove every per-line markup so all lines follow the defaults" style="margin-bottom:9px;">Reset line markups</button>' +
+        '<div style="font-size:11.5px;color:var(--ink-soft);padding-bottom:9px;max-width:380px;">Markup is added on top of cost. Tax applies to material only, never labor, and is figured on cost. A highlighted markup is a per-line override; blank follows the default. Untick Tax on a material line to exempt it.</div></div>' +
       (estImportOpen ? '<div class="est-import"><div style="font-size:12.5px;margin-bottom:6px;">Paste the JSON Claude gave you, or choose a .json file.</div>' +
         '<textarea id="estImportText" placeholder=\'{"sections":[…]}\'></textarea>' +
         '<div class="inline-row" style="margin-top:6px;"><input type="file" id="estImportFile" accept=".json,application/json">' +
@@ -4504,7 +4527,7 @@
     var lab = String(it.type || "").toLowerCase().indexOf("lab") === 0;
     function num(){ for(var k = 0; k < arguments.length; k++){ var x = it[arguments[k]]; if(x !== undefined && x !== null && x !== "" && !isNaN(Number(x))) return Number(x); } return 0; }
     var mk = (it.markup === undefined || it.markup === null || it.markup === "" || isNaN(Number(it.markup))) ? null : Number(it.markup);
-    return {id:uid(), type: lab ? "labor" : "material", description:String(it.description || it.name || ""), qty:num("qty","quantity","hours"), unit: lab ? "hr" : String(it.unit || "ea"), unitCost:num("unitCost","cost","rate"), markup:mk, taxable:!(it.taxable === false || String(it.taxable).toLowerCase() === "false" || it.taxable === 0)};
+    return {id:uid(), type: lab ? "labor" : "material", description:String(it.description || it.name || ""), qty:num("qty","quantity","hours"), unit: lab ? "hr" : String(it.unit || "ea"), unitCost:num("unitCost","cost","rate"), markup:mk, taxable: lab ? true : !(it.taxable === false || String(it.taxable).toLowerCase() === "false" || it.taxable === 0)};
   }
   function estParseImport(txt){
     var data = JSON.parse(txt);
@@ -4529,7 +4552,6 @@
       e.sections = parsed.sections;
       var d = parsed.data;
       if(typeof d.taxRate === "number") e.taxRate = d.taxRate;
-      if(typeof d.taxLabor === "boolean") e.taxLabor = d.taxLabor;
       if(typeof d.materialMarkup === "number") e.materialMarkup = d.materialMarkup;
       if(typeof d.laborMarkup === "number") e.laborMarkup = d.laborMarkup;
     } else {
@@ -4548,10 +4570,11 @@
       var e = ensureEstimate(v), r = estFind(b);
       if(act === "back"){ closeEstimate(); return; }
       if(act === "toggleimport"){ estImportOpen = !estImportOpen; renderEstimate(); return; }
+      if(act === "clearmk"){ estFlat(e.sections).forEach(function(it){ it.markup = null; }); estSaveSoon(); renderEstimate(); toast("Line markups reset — every line follows the defaults"); return; }
       if(act === "exportjson"){
-        var blob = new Blob([JSON.stringify({taxRate:e.taxRate, taxLabor:e.taxLabor, materialMarkup:e.materialMarkup, laborMarkup:e.laborMarkup,
+        var blob = new Blob([JSON.stringify({taxRate:e.taxRate, materialMarkup:e.materialMarkup, laborMarkup:e.laborMarkup,
           sections:e.sections.map(function(sec){ return {title:sec.title, subsections:sec.subsections.map(function(u){ return {title:u.title, items:u.items.map(function(it){
-            var o = {type:it.type, description:it.description, qty:it.qty, unit:it.unit, unitCost:it.unitCost}; if(it.markup !== null && it.markup !== undefined) o.markup = it.markup; if(it.taxable === false) o.taxable = false; return o; })}; })}; })}, null, 2)], {type:"application/json"});
+            var o = {type:it.type, description:it.description, qty:it.qty, unit:it.unit, unitCost:it.unitCost}; if(it.markup !== null && it.markup !== undefined) o.markup = it.markup; if(it.taxable === false && it.type !== "labor") o.taxable = false; return o; })}; })}; })}, null, 2)], {type:"application/json"});
         var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "estimate-" + estCtx.cardId + "-V" + (estCtx.vi + 1) + ".json"; a.click(); URL.revokeObjectURL(a.href);
         return;
       }
@@ -4597,11 +4620,14 @@
         else if(f === "description") it.description = val;
         else if(f === "unit") it.unit = val;
         else if(f === "qty" || f === "unitCost") it[f] = parseFloat(val) || 0;
-        else if(f === "markup") it.markup = (val === "" || isNaN(parseFloat(val))) ? null : parseFloat(val);
+        else if(f === "markup"){
+          it.markup = (val === "" || isNaN(parseFloat(val))) ? null : parseFloat(val);
+          if(it.markup === null){ el.style.background = ""; el.style.color = ""; el.style.fontWeight = ""; }
+          else { el.style.background = "#fff3bf"; el.style.color = "#222"; el.style.fontWeight = "700"; }
+        }
         else if(f === "taxable"){ it.taxable = !!val; }
       }
       else if(f === "taxRate" || f === "materialMarkup" || f === "laborMarkup") e[f] = parseFloat(val) || 0;
-      else if(f === "taxLabor") e.taxLabor = !!val;
       if(ev.type === "change" && (f === "materialMarkup" || f === "laborMarkup" || f === "type")) rerender = true;
       estSaveSoon();
       if(rerender) renderEstimate(); else estRefresh();
@@ -4693,17 +4719,18 @@
 
   /* ---------------- Quick-add company ---------------- */
   var quickCompanyCb = null;
-  function openQuickCompany(cb){
+  function openQuickCompany(cb, opts){
+    opts = opts || {};
     quickCompanyCb = cb;
     var m = document.getElementById("quickCompanyModal");
-    function f(l,k){ return '<div class="field"><label>' + l + '</label><input type="text" data-qc="' + k + '"></div>'; }
+    function f(l,k){ return '<div class="field"><label>' + l + '</label><input type="text" data-qc="' + k + '"' + (k === "name" && opts.name ? ' value="' + esc(opts.name) + '"' : '') + '></div>'; }
     m.innerHTML =
-      '<div class="modal-head"><div><h2>New company</h2><div class="sub">Saved to the Library and filled into the card you were on. Add the rest later from the Library.</div></div>' +
+      '<div class="modal-head"><div><h2>New company</h2><div class="sub">Saved to the Library and filled in where you were. Add the rest later from the Library.</div></div>' +
       '<button class="close-x" id="qc_x">✕</button></div>' +
       '<div class="modal-body">' +
         '<div class="row2">' + f("Company name","name") +
           '<div class="field"><label>Type</label><select data-qc="type">' +
-            ["Customer","Contractor","Customer & Contractor","Vendor / Other"].map(function(t){ return '<option' + (t==="Contractor"?" selected":"") + '>' + t + '</option>'; }).join("") +
+            ["Customer","Contractor","Customer & Contractor","Vendor / Other"].map(function(t){ return '<option' + (t===(opts.type || "Contractor")?" selected":"") + '>' + t + '</option>'; }).join("") +
           '</select></div></div>' +
         f("Street address","address") +
         '<div class="row2">' + f("City","city") + '<div class="row2">' + f("State","state") + f("ZIP","zip") + '</div></div>' +
