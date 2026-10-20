@@ -750,8 +750,9 @@
     SUGGESTION_PLACEHOLDER: "e.g. “Estimating tab: add a field for …”",
     BILLING_REPORT_STATUSES: ["project_created","project_in_progress","project_complete","final_invoiced"],
     DOC_INCLUDED_GB: 100,
-    // Estimate page defaults (markup is a percent added on top of cost; tax is a percent of cost)
+    // Estimate page defaults (markup is a percent added on top of cost; tax is a percent of the sale price, cost + markup, on taxable material lines)
     ESTIMATE_DEFAULTS: {taxRate:0, materialMarkup:30, laborMarkup:100},
+    ESTIMATE_TAX_ON_PRICE: true, // false = figure tax on cost before markup instead
     ESTIMATE_CLAUDE_PROMPT: 'Return the estimate as ONLY a JSON object (no commentary) in exactly this shape:\n' +
       '{"taxRate": 9.75, "sections": [{"title": "Section name", "subsections": [{"title": "Subsection name", "items": [' +
       '{"type": "material", "description": "Cat6A plenum cable, 1000 ft box", "qty": 12, "unit": "box", "unitCost": 285.00}, ' +
@@ -4384,7 +4385,7 @@
     var ext = (Number(it.qty) || 0) * (Number(it.unitCost) || 0);
     var pct = (it.markup === null || it.markup === undefined || it.markup === "") ? (lab ? e.laborMarkup : e.materialMarkup) : (Number(it.markup) || 0);
     var mk = ext * pct / 100;
-    var tax = (!lab && it.taxable !== false) ? ext * (Number(e.taxRate) || 0) / 100 : 0;
+    var tax = (!lab && it.taxable !== false) ? (CONFIG.ESTIMATE_TAX_ON_PRICE === false ? ext : ext + mk) * (Number(e.taxRate) || 0) / 100 : 0;
     return {ext:ext, mk:mk, price:ext + mk, tax:tax, lab:lab};
   }
   function estCalc(items, e){
@@ -4494,7 +4495,7 @@
         '<div class="field"><label>Default material markup %</label><input type="number" step="any" style="width:90px;" data-f="materialMarkup" value="' + esc(String(e.materialMarkup)) + '"></div>' +
         '<div class="field"><label>Default labor markup %</label><input type="number" step="any" style="width:90px;" data-f="laborMarkup" value="' + esc(String(e.laborMarkup)) + '"></div>' +
         '<button class="btn small" data-act="clearmk" title="Remove every per-line markup so all lines follow the defaults" style="margin-bottom:9px;">Reset line markups</button>' +
-        '<div style="font-size:11.5px;color:var(--ink-soft);padding-bottom:9px;max-width:380px;">Markup is added on top of cost. Tax applies to material only, never labor, and is figured on cost. A highlighted markup is a per-line override; blank follows the default. Untick Tax on a material line to exempt it.</div></div>' +
+        '<div style="font-size:11.5px;color:var(--ink-soft);padding-bottom:9px;max-width:380px;">Markup is added on top of cost. Tax applies to material only, never labor, and is figured on the sale price (cost + markup). A highlighted markup is a per-line override; blank follows the default. Untick Tax on a material line to exempt it.</div></div>' +
       (estImportOpen ? '<div class="est-import"><div style="font-size:12.5px;margin-bottom:6px;">Paste the JSON Claude gave you, or choose a .json file.</div>' +
         '<textarea id="estImportText" placeholder=\'{"sections":[…]}\'></textarea>' +
         '<div class="inline-row" style="margin-top:6px;"><input type="file" id="estImportFile" accept=".json,application/json">' +
