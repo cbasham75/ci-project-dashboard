@@ -98,21 +98,33 @@
   .btn.primary:hover{background:var(--blue-deep);}
   .btn.danger{color:var(--red);}
   .btn.ghost{border-color:transparent;background:transparent;}
+  .btn.back-btn{background:#fde68a;border:1.5px solid #d4a017;color:#5c4400;box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 2px 4px rgba(120,90,0,.22);}
+  .btn.back-btn:hover{background:#fcd95b;border-color:#b98a00;}
+  .btn.back-btn:active{box-shadow:0 1px 2px rgba(120,90,0,.3) inset;}
   .btn.small{padding:5px 10px;font-size:12.5px;}
   .btn:disabled{opacity:.45;cursor:not-allowed;}
 
   .bell-wrap{position:relative;}
   .bell{
     position:relative;border:1px solid var(--line);background:var(--paper-raised);
-    border-radius:6px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:16px;
+    border-radius:10px;width:54px;height:54px;display:flex;align-items:center;justify-content:center;font-size:30px;
   }
+  .bell .ico{display:inline-block;transform-origin:50% 8%;}
+  .bell.ringing .ico{animation:bellSwing 15s ease-in-out infinite;}
+  /* Swings for about a second and a half, then rests until the next 15-second cycle. */
+  @keyframes bellSwing{
+    0%{transform:rotate(0)} 1.5%{transform:rotate(18deg)} 3%{transform:rotate(-16deg)} 4.5%{transform:rotate(12deg)}
+    6%{transform:rotate(-9deg)} 7.5%{transform:rotate(5deg)} 9%{transform:rotate(-2deg)} 10%,100%{transform:rotate(0)}
+  }
+  @media (prefers-reduced-motion:reduce){ .bell.ringing .ico{animation:none;} }
   .bell .dot{
-    position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;
-    font-size:10px;font-weight:700;border-radius:10px;min-width:16px;height:16px;
-    display:flex;align-items:center;justify-content:center;padding:0 4px;
+    position:absolute;top:-8px;right:-8px;background:var(--red);color:#fff;
+    font-size:13px;font-weight:700;border-radius:12px;min-width:24px;height:24px;
+    display:flex;align-items:center;justify-content:center;padding:0 6px;border:2px solid var(--paper-raised);
   }
+  .mention{background:rgba(44,82,130,.15);color:var(--blue);font-weight:700;border-radius:4px;padding:0 3px;}
   .alerts-panel{
-    position:absolute;right:0;top:44px;width:320px;max-height:400px;overflow:auto;
+    position:absolute;right:0;top:62px;width:320px;max-height:400px;overflow:auto;
     background:var(--paper-raised);border:1px solid var(--line);border-radius:8px;
     box-shadow:0 8px 24px rgba(0,0,0,.12);display:none;z-index:40;
   }
@@ -327,6 +339,15 @@
   .est-foot{display:flex;gap:22px;flex-wrap:wrap;align-items:center;padding:12px 20px;border-top:2px solid var(--line);background:var(--paper-raised);font-size:12px;color:var(--ink-soft);}
   .est-foot strong{display:block;font-size:15px;color:var(--ink);font-family:'IBM Plex Mono',monospace;}
   .est-import{padding:12px 20px;border-bottom:1px solid var(--line);background:var(--paper-raised);}
+  .est-glance{border-top:1px solid var(--line-soft);padding-top:8px;}
+  .est-sec-sub{display:flex;gap:12px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap;}
+  .est-scope{flex:1;min-width:220px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12.5px;background:var(--paper);}
+  .est-sec-nums{font-size:12px;color:var(--ink-soft);}
+  .est-sec-nums b{color:var(--ink);font-family:'IBM Plex Mono',monospace;}
+  .est-scope-wrap{padding:8px 20px;border-bottom:1px solid var(--line-soft);background:var(--paper-raised);}
+  .est-scope-wrap label{display:block;font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:3px;}
+  .est-scope-wrap textarea{width:100%;min-height:48px;}
+  #estimateScreen.est-drop{outline:3px dashed var(--blue);outline-offset:-6px;}
   .est-import textarea{width:100%;min-height:120px;font-family:'IBM Plex Mono',monospace;font-size:12px;}
   th.sortable{cursor:pointer;user-select:none;white-space:nowrap;}
   th.sortable:hover{color:var(--ink);}
@@ -420,10 +441,6 @@
     padding:3px 9px;border-radius:20px;background:var(--stage-color,var(--slate));color:#fff;
   }
 
-  footer.app-foot{
-    padding:14px 20px 26px;display:flex;gap:10px;justify-content:center;color:var(--ink-soft);font-size:12px;flex-wrap:wrap;
-  }
-
   .calendar{padding:18px 20px;}
   .cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
   .cal-nav{display:flex;align-items:center;gap:10px;}
@@ -434,6 +451,12 @@
     display:flex;flex-direction:column;gap:3px;overflow:hidden;}
   .cal-day.empty{background:transparent;border-color:transparent;}
   .cal-day.today{border-color:var(--blue);border-width:2px;}
+  .cal-day.past{opacity:.7;}
+  .cal-day.dropok{outline:2px dashed var(--blue);outline-offset:-3px;background:rgba(44,82,130,.07);}
+  .cal-bubble[draggable=true]{cursor:grab;}
+  .cal-bubble.dragging{opacity:.4;}
+  .cal-range{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);}
+  .toast-undo{margin-left:8px;border:1px solid rgba(255,255,255,.6);background:transparent;color:inherit;border-radius:5px;padding:2px 8px;cursor:pointer;font-weight:700;}
   .cal-daynum{font-size:11px;color:var(--ink-soft);}
   .cal-bubble{
     display:block;width:100%;text-align:left;font-size:10.5px;padding:3px 7px;border-radius:12px;
@@ -534,7 +557,7 @@
           <button class="btn ghost small" id="logoutBtn">Log out</button>
         </div>
         <div class="bell-wrap">
-          <button class="bell" id="bellBtn" title="Alerts">🔔<span class="dot" id="alertDot" style="display:none;">0</span></button>
+          <button class="bell" id="bellBtn" title="Alerts"><span class="ico">🔔</span><span class="dot" id="alertDot" style="display:none;">0</span></button>
           <div class="alerts-panel" id="alertsPanel">
             <h4>Alerts</h4>
             <div id="alertsList"></div>
@@ -563,10 +586,6 @@
 <div class="calendar" id="reportsView" style="display:none;"></div>
 <div class="calendar" id="libraryView" style="display:none;"></div>
 <div class="calendar" id="serviceCalView" style="display:none;"></div>
-
-<footer class="app-foot" id="appFooter" style="display:none;">
-  MVP — data lives in this browser only (localStorage). Use Export JSON to back up or hand off to a database/GitHub build.
-</footer>
 
 <!-- New Card Modal -->
 <div class="overlay" id="newCardOverlay">
@@ -745,20 +764,28 @@
   /* ---------------- CONFIG: labels, lists and site-specific values live here ---------------- */
   var CONFIG = {
     // Site owner(s): can manage the whole suggestion list. (Server-side policy lives in the suggestions table.)
+    CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
+    CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
+    CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
+    TIME_START_HOUR: 6,                 // time dropdowns offer this hour through TIME_END_HOUR
+    TIME_END_HOUR: 17,
+    TIME_DEFAULT: "12:00",              // preselected on new forms
     OWNER_EMAILS: ["cbasham@cablinginnovations.net"],
     SUGGESTION_PROMPT: "Got an idea? Tell us where it applies (tab, card, tile, calendar…) and what you'd like changed.",
     SUGGESTION_PLACEHOLDER: "e.g. “Estimating tab: add a field for …”",
     BILLING_REPORT_STATUSES: ["project_created","project_in_progress","project_complete","final_invoiced"],
     DOC_INCLUDED_GB: 100,
     // Estimate page defaults (markup is a percent added on top of cost; tax is a percent of the sale price, cost + markup, on taxable material lines)
-    ESTIMATE_DEFAULTS: {taxRate:0, materialMarkup:30, laborMarkup:100},
+    ESTIMATE_DEFAULTS: {taxRate:9.75, materialMarkup:30, laborMarkup:88.89},
+    ESTIMATE_CREW: {techs:2, hoursPerDay:8},   // crew-days = labor hours / (techs x hoursPerDay)
     ESTIMATE_TAX_ON_PRICE: true, // false = figure tax on cost before markup instead
     ESTIMATE_CLAUDE_PROMPT: 'Return the estimate as ONLY a JSON object (no commentary) in exactly this shape:\n' +
       '{"taxRate": 9.75, "sections": [{"title": "Section name", "subsections": [{"title": "Subsection name", "items": [' +
       '{"type": "material", "description": "Cat6A plenum cable, 1000 ft box", "qty": 12, "unit": "box", "unitCost": 285.00}, ' +
       '{"type": "labor", "description": "Pull and terminate drops", "qty": 120, "unitCost": 65}]}]}]}\n' +
       'Rules: type is "material" or "labor". unitCost is OUR cost before markup. For labor, qty is HOURS and unitCost is the hourly cost rate. ' +
-      'An optional per-line "markup" (percent) overrides the default markup. An optional "taxable": false marks a material line as tax-exempt. Labor is never taxed. Leave out taxRate if unknown.'
+      'An optional per-line "markup" (percent) overrides the default markup. An optional "taxable": false marks a material line as tax-exempt. Labor is never taxed. Leave out taxRate if unknown. ' +
+      'Optional: a top-level "scope" (short overall scope), a "scope" on each section (one line, e.g. "(2) 2D, (7) 1D WAP, (2) 1D cam"), and "cableCount" (total cables in the job).'
   };
 
   /* ---------------- Config ---------------- */
@@ -1053,21 +1080,29 @@
   }
 
   // Rolling 30-minute time options, e.g. "8:00 AM", "8:30 AM" … stored as 24-hour "HH:MM".
-  function generateTimeOptions(){
+  function generateTimeOptions(selected){
     var opts = [{value:"", label:"—"}];
-    for(var h=0; h<24; h++){
-      [0,30].forEach(function(m){
-        var value = String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
-        var period = h < 12 ? "AM" : "PM";
-        var h12 = h % 12; if(h12 === 0) h12 = 12;
-        var label = h12 + ":" + String(m).padStart(2,"0") + " " + period;
-        opts.push({value:value, label:label});
-      });
+    function add(h, m){
+      var value = String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
+      var period = h < 12 ? "AM" : "PM";
+      var h12 = h % 12; if(h12 === 0) h12 = 12;
+      opts.push({value:value, label:h12 + ":" + String(m).padStart(2,"0") + " " + period});
+    }
+    for(var h=CONFIG.TIME_START_HOUR; h<=CONFIG.TIME_END_HOUR; h++){
+      add(h, 0);
+      if(h < CONFIG.TIME_END_HOUR) add(h, 30);
+    }
+    // A saved time outside the normal window must still show, so opening a card never changes it.
+    if(selected && !opts.some(function(o){ return o.value === selected; }) && /^\d\d:\d\d$/.test(selected)){
+      add(parseInt(selected.slice(0,2),10), parseInt(selected.slice(3),10));
+      var extra = opts.pop();
+      opts.push(extra);
+      opts.sort(function(a,b){ return a.value < b.value ? -1 : 1; });
     }
     return opts;
   }
   function timeOptionsHtml(selected){
-    return generateTimeOptions().map(function(o){
+    return generateTimeOptions(selected).map(function(o){
       return '<option value="' + o.value + '"' + (o.value === selected ? " selected" : "") + '>' + o.label + '</option>';
     }).join("");
   }
@@ -1168,6 +1203,39 @@
     renderAlerts();
   }
 
+  /* ---------------- @ mentions in notes ---------------- */
+  // Matches "@Jeremy" or "@Jeremy Sanders" (first or full name of a team member, case-insensitive).
+  function mentionedMembers(text){
+    var out = [], t = String(text || "").toLowerCase();
+    teamMembers.forEach(function(name){
+      var full = name.toLowerCase(), first = full.split(" ")[0];
+      var dupFirst = teamMembers.filter(function(n){ return n.toLowerCase().split(" ")[0] === first; }).length > 1;
+      var re = new RegExp("@(" + full.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+") + (dupFirst ? "" : "|" + first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) + ")(?![a-z0-9])");
+      if(re.test(t) && out.indexOf(name) === -1) out.push(name);
+    });
+    return out;
+  }
+  // Alert each newly tagged person (skips yourself and anyone already tagged in the old text).
+  function notifyMentions(card, text, oldText){
+    var before = oldText ? mentionedMembers(oldText) : [];
+    mentionedMembers(text).forEach(function(name){
+      if(name === currentUserName || before.indexOf(name) !== -1) return;
+      var snip = String(text).replace(/\s+/g, " ").trim();
+      if(snip.length > 90) snip = snip.slice(0, 90) + "…";
+      pushAlert(card.id, card.projectName, (getUser() || "Someone") + " tagged you: \"" + snip + "\"", name);
+    });
+  }
+  // Escapes note text and highlights tagged names.
+  function noteTextHtml(text){
+    var html = esc(text);
+    mentionedMembers(text).forEach(function(name){
+      var full = name.toLowerCase(), first = full.split(" ")[0];
+      var re = new RegExp("@(" + esc(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+") + "|" + first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")(?![A-Za-z0-9])", "gi");
+      html = html.replace(re, '<span class="mention">$&</span>');
+    });
+    return html;
+  }
+
   /* ---------------- Card factory ---------------- */
   function makeCard(data){
     return {
@@ -1175,6 +1243,7 @@
       status: "opportunity",
       estimatingStage: "in_progress",
       createdAt: new Date().toISOString(),
+      createdBy: getUser(),
       projectName: data.projectName || "",
       address: data.address || "",
       projectCustomer: data.projectCustomer || "",
@@ -1603,7 +1672,7 @@
     return {
       id:"", jobName:"", customer:"", address:"", assignedTo:"", salesperson:"",
       divisions:{scs:false, security:false, av:false, demo:false},
-      description:"", serviceDate:"", serviceTime:"", amount:0,
+      description:"", serviceDate:"", serviceTime:CONFIG.TIME_DEFAULT, amount:0,
       contacts:[], parking:"", workHours:"", accessMethod:"", additionalInfo:"",
       permitRequired:false, permitNumber:"", buildingPermitNumber:"", submittalsRequired:false,
       links:[],
@@ -1719,6 +1788,37 @@
     openOverlay("serviceOverlay");
   }
 
+  // Change a saved service ticket's number. Refuses blanks and numbers already used; moves its documents with it.
+  async function changeServiceNumber(j){
+    var oldId = j.id;
+    var raw = prompt("Enter the new service ticket number:", oldId);
+    if(raw === null) return;
+    var newId = raw.trim();
+    if(!newId){ alert("The ticket number can't be blank. Nothing was changed."); return; }
+    if(newId === oldId) return;
+    var taken = serviceJobs.some(function(x){ return x.id.toLowerCase() === newId.toLowerCase(); });
+    if(!taken && supabaseClient){
+      var chk = await supabaseClient.from("service_jobs").select("id").ilike("id", newId.replace(/[%_]/g, "\\$&"));
+      if(chk.error){ alert("Couldn't check for duplicates: " + chk.error.message + "\nNothing was changed."); return; }
+      taken = (chk.data || []).length > 0;
+    }
+    if(taken){ alert("\"" + newId + "\" is already used by another service ticket. Nothing was changed."); return; }
+    if(!confirm("Change " + oldId + " to " + newId + "?\nIt changes everywhere that ticket is shown, and its documents move with it.")) return;
+    var saved = serviceJobs.find(function(x){ return x.id === oldId; });
+    var job = saved || j;
+    job.id = newId; j.id = newId;
+    if(supabaseClient){
+      var ins = await supabaseClient.from("service_jobs").upsert({id:newId, data:job, updated_at:new Date().toISOString()});
+      if(ins.error){ job.id = oldId; j.id = oldId; toast("Couldn't change the number — " + ins.error.message); return; }
+      await supabaseClient.from("documents").update({owner_id:newId}).eq("owner_type", "service").eq("owner_id", oldId);
+      await supabaseClient.from("service_jobs").delete().eq("id", oldId);
+    }
+    renderBoard();
+    if(document.getElementById("serviceCalView").style.display !== "none") renderServiceCalendar();
+    if(sjDraft && document.getElementById("serviceOverlay").classList.contains("open")) renderServiceModal();
+    toast("Ticket number changed to " + newId);
+  }
+
   function renderServiceModal(){
     var j = sjDraft, cp = j.completion;
     var isNew = !j.id;
@@ -1731,6 +1831,7 @@
         '<button class="close-x" id="sjCloseX">✕</button></div></div>' +
       '<div class="modal-body">' +
         '<p class="section-title">Overview</p>' +
+        (isNew ? '' : '<div class="field"><label>Service ticket number</label><div class="inline-row"><span class="mono" style="font-size:14px;font-weight:700;flex:0 0 auto;">' + esc(j.id) + '</span><button type="button" class="btn small" id="sjChangeNumBtn">✏️ Change number</button></div></div>') +
         '<div class="field"><label>Job name *</label><input type="text" data-sj="jobName" value="' + esc(j.jobName) + '"></div>' +
         '<div class="row2">' +
           '<div class="field"><label>Customer (from Library)</label>' + sjCompanySelect(j.customer) + '</div>' +
@@ -1802,6 +1903,8 @@
     });
     modal.querySelector("#sjAddContact").addEventListener("click", function(){ sjDraft.contacts.push({name:""}); renderServiceModal(); });
     modal.querySelector("#sjCloseX").addEventListener("click", function(){ closeOverlay("serviceOverlay"); });
+    var sjNumBtn = modal.querySelector("#sjChangeNumBtn");
+    if(sjNumBtn) sjNumBtn.addEventListener("click", function(){ changeServiceNumber(j); });
     var sjDocBtn = modal.querySelector("#docsHeadBtn");
     if(sjDocBtn){ sjDocBtn.addEventListener("click", function(){ openDocs("service", j.id, j.id + " — " + (j.jobName || "Service job")); }); refreshDocBtn("service", j.id); }
     var sjFiles = modal.querySelector("#sjFiles");
@@ -1855,41 +1958,144 @@
     });
   }
 
-  function renderServiceCalendar(){
-    var cal = document.getElementById("serviceCalView");
-    var now = new Date();
-    var base = new Date(now.getFullYear(), now.getMonth() + sjCalOffset, 1);
-    var year = base.getFullYear(), month = base.getMonth();
-    var monthLabel = base.toLocaleDateString(undefined, {month:"long", year:"numeric"});
-    var firstWeekday = new Date(year, month, 1).getDay();
-    var daysInMonth = new Date(year, month+1, 0).getDate();
-    var todayStr = formatDateISO(now);
-    var cellsHtml = "";
-    for(var i=0; i<firstWeekday; i++){ cellsHtml += '<div class="cal-day empty"></div>'; }
-    for(var d=1; d<=daysInMonth; d++){
-      var dateStr = formatDateISO(new Date(year, month, d));
-      var bubbles = serviceJobs.filter(function(j){ return j.serviceDate === dateStr; }).sort(function(a,b){ return (a.serviceTime||"").localeCompare(b.serviceTime||""); }).map(function(j){
-        var label = (j.serviceTime ? esc(j.serviceTime) + " " : "") + esc(j.jobName || "Untitled") + " / " + esc(j.id) + (j.assignedTo ? " · " + esc(j.assignedTo) : "");
-        return '<button type="button" class="cal-bubble ' + (j.completion.complete ? "done" : "pending") + '" data-open-sj="' + esc(j.id) + '" title="' + label + '">' + label + '</button>';
-      }).join("");
-      cellsHtml += '<div class="cal-day' + (dateStr === todayStr ? " today" : "") + '"><div class="cal-daynum">' + d + '</div>' + bubbles + '</div>';
+  /* ---------------- Calendar helpers (shared by both calendars) ---------------- */
+  var calMode = CONFIG.CALENDAR_DEFAULT_MODE;
+  try { calMode = localStorage.getItem("ci_cal_mode") || calMode; } catch(e){}
+  function setCalMode(m){ calMode = m; try { localStorage.setItem("ci_cal_mode", m); } catch(e){} }
+
+  // Builds the list of days to show. Rolling: last week through the next few weeks, whatever today's date is.
+  // Month: the classic month grid (leading blanks keep the weekday columns lined up).
+  function calWindow(offset){
+    var now = new Date(), days = [], label = "", range = "";
+    if(calMode === "month"){
+      var base = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      label = base.toLocaleDateString(undefined, {month:"long", year:"numeric"});
+      for(var i=0; i<base.getDay(); i++) days.push(null);
+      var dim = new Date(base.getFullYear(), base.getMonth()+1, 0).getDate();
+      for(var d=1; d<=dim; d++) days.push(new Date(base.getFullYear(), base.getMonth(), d));
+    } else {
+      var start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() - 7*CONFIG.CAL_WEEKS_BEFORE + 7*offset);
+      var n = 7*(CONFIG.CAL_WEEKS_BEFORE + 1 + CONFIG.CAL_WEEKS_AFTER), count = {}, best = null;
+      for(var k=0; k<n; k++){
+        var dt = new Date(start.getFullYear(), start.getMonth(), start.getDate()+k);
+        days.push(dt);
+        var key = dt.getFullYear()*100 + dt.getMonth();
+        count[key] = (count[key]||0) + 1;
+        if(best === null || count[key] > count[best.key]) best = {key:key, date:dt};
+      }
+      // Header names the month that makes up most of the view.
+      label = best.date.toLocaleDateString(undefined, {month:"long", year:"numeric"});
+      var f = days[0], l = days[days.length-1], sh = {month:"short", day:"numeric"};
+      range = f.toLocaleDateString(undefined, sh) + " – " + l.toLocaleDateString(undefined, sh);
     }
-    cal.innerHTML =
-      '<div class="cal-head">' +
-        '<button class="btn ghost" id="sjcBackBtn">← Back to Card view</button>' +
+    return {days:days, label:label, range:range};
+  }
+
+  function calGridHtml(win, bubblesFor){
+    var todayStr = formatDateISO(new Date()), html = "";
+    win.days.forEach(function(dt){
+      if(!dt){ html += '<div class="cal-day empty"></div>'; return; }
+      var ds = formatDateISO(dt), num = (calMode !== "month" && dt.getDate() === 1) ? dt.toLocaleDateString(undefined, {month:"short"}) + " 1" : dt.getDate();
+      html += '<div class="cal-day' + (ds === todayStr ? " today" : "") + (calMode !== "month" && ds < todayStr ? " past" : "") + '" data-date="' + ds + '"><div class="cal-daynum">' + num + '</div>' + bubblesFor(ds) + '</div>';
+    });
+    return html;
+  }
+
+  function calHeadHtml(p, title, win){
+    return '<div class="cal-head">' +
+        '<button class="btn back-btn" id="' + p + 'BackBtn">← Back to Card view</button>' +
         '<div class="cal-nav">' +
-          '<button class="btn small" id="sjcPrevBtn">‹</button>' +
-          '<span class="cal-month-label">🛠️ Service Calendar — ' + monthLabel + '</span>' +
-          '<button class="btn small" id="sjcNextBtn">›</button>' +
-          '<button class="btn" id="sjcRefreshBtn" title="Refresh" style="font-size:18px;padding:8px 16px;">🔄</button>' +
+          '<button class="btn small" id="' + p + 'PrevBtn" title="' + (calMode === "month" ? "Previous month" : "Previous week") + '">‹</button>' +
+          '<span class="cal-month-label">' + title + win.label + (win.range ? '<span class="cal-range">' + win.range + '</span>' : '') + '</span>' +
+          '<button class="btn small" id="' + p + 'NextBtn" title="' + (calMode === "month" ? "Next month" : "Next week") + '">›</button>' +
+          '<button class="btn small" id="' + p + 'TodayBtn">Today</button>' +
+          '<button class="btn small" id="' + p + 'ModeBtn" title="Switch between rolling weeks and month">' + (calMode === "month" ? "Rolling weeks" : "Month view") + '</button>' +
+          '<button class="btn" id="' + p + 'RefreshBtn" title="Refresh" style="font-size:18px;padding:8px 16px;">🔄</button>' +
         '</div>' +
       '</div>' +
-      '<div class="cal-weekdays">' + ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(function(w){ return '<div>' + w + '</div>'; }).join("") + '</div>' +
-      '<div class="cal-grid">' + cellsHtml + '</div>';
-    cal.querySelector("#sjcBackBtn").addEventListener("click", showBoard);
-    cal.querySelector("#sjcPrevBtn").addEventListener("click", function(){ sjCalOffset--; renderServiceCalendar(); });
-    cal.querySelector("#sjcNextBtn").addEventListener("click", function(){ sjCalOffset++; renderServiceCalendar(); });
-    cal.querySelector("#sjcRefreshBtn").addEventListener("click", function(){
+      '<div class="cal-weekdays">' + ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(function(w){ return '<div>' + w + '</div>'; }).join("") + '</div>';
+  }
+
+  function calWire(cal, p, getOff, setOff, rerender, refresh){
+    cal.querySelector("#" + p + "BackBtn").addEventListener("click", showBoard);
+    cal.querySelector("#" + p + "PrevBtn").addEventListener("click", function(){ setOff(getOff()-1); rerender(); });
+    cal.querySelector("#" + p + "NextBtn").addEventListener("click", function(){ setOff(getOff()+1); rerender(); });
+    cal.querySelector("#" + p + "TodayBtn").addEventListener("click", function(){ setOff(0); rerender(); });
+    cal.querySelector("#" + p + "ModeBtn").addEventListener("click", function(){ setCalMode(calMode === "month" ? "rolling" : "month"); setOff(0); rerender(); });
+    cal.querySelector("#" + p + "RefreshBtn").addEventListener("click", refresh);
+    // Drag a bubble onto another day to move the date it came from.
+    cal.querySelectorAll("[data-mv]").forEach(function(b){
+      b.setAttribute("draggable", "true");
+      b.addEventListener("dragstart", function(e){
+        e.dataTransfer.setData("text/plain", JSON.stringify({kind:b.dataset.mv, id:b.dataset.mvid, x:b.dataset.mvx || ""}));
+        e.dataTransfer.effectAllowed = "move";
+        b.classList.add("dragging");
+      });
+      b.addEventListener("dragend", function(){ b.classList.remove("dragging"); });
+    });
+    cal.querySelectorAll(".cal-day[data-date]").forEach(function(cell){
+      cell.addEventListener("dragover", function(e){ e.preventDefault(); cell.classList.add("dropok"); });
+      cell.addEventListener("dragleave", function(){ cell.classList.remove("dropok"); });
+      cell.addEventListener("drop", function(e){
+        e.preventDefault(); cell.classList.remove("dropok");
+        var info; try { info = JSON.parse(e.dataTransfer.getData("text/plain")); } catch(x){ return; }
+        if(info && info.kind) moveCalItem(info, cell.dataset.date, true);
+      });
+    });
+  }
+
+  function toastUndo(msg, undo){
+    var wrap = document.getElementById("toastWrap");
+    var el = document.createElement("div");
+    el.className = "toast";
+    el.appendChild(document.createTextNode(msg + " "));
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.className = "toast-undo"; btn.textContent = "Undo";
+    btn.addEventListener("click", function(){ el.remove(); undo(); });
+    el.appendChild(btn);
+    wrap.appendChild(el);
+    setTimeout(function(){ el.remove(); }, 7000);
+  }
+
+  // Updates the date a calendar bubble was derived from, saves, redraws. Returns the previous date.
+  function moveCalItem(info, newDate, withUndo){
+    var oldDate = "", label = "";
+    if(info.kind === "sj"){
+      var job = serviceJobs.find(function(j){ return j.id === info.id; });
+      if(!job || job.serviceDate === newDate) return;
+      oldDate = job.serviceDate; job.serviceDate = newDate; label = job.id;
+      if(supabaseClient) supabaseClient.from("service_jobs").upsert({id:job.id, data:job, updated_at:new Date().toISOString()}).then(function(res){
+        if(res && res.error){ toast("Couldn't save — " + res.error.message); }
+      });
+    } else {
+      var card = cards.find(function(c){ return c.id === info.id; });
+      if(!card) return;
+      var target = null, field = "";
+      if(info.kind === "bid"){ target = card; field = "bidDueDate"; }
+      else if(info.kind === "co"){ target = (card.changeOrders || []).find(function(co){ return String(co.num) === String(info.x); }); field = "coDueDate"; }
+      else if(info.kind === "ver"){ target = (card.estimateVersions || [])[Number(info.x)]; field = "dueDate"; }
+      if(!target || target[field] === newDate) return;
+      oldDate = target[field]; target[field] = newDate; label = card.id;
+      saveCards();
+      if(activeDetailId === card.id) renderDetail();
+    }
+    renderBoard();
+    if(document.getElementById("calendarView").style.display !== "none") renderCalendar();
+    if(document.getElementById("serviceCalView").style.display !== "none") renderServiceCalendar();
+    if(withUndo) toastUndo(label + " moved to " + newDate + ".", function(){ moveCalItem(info, oldDate, false); toast("Moved back to " + oldDate); });
+  }
+
+  function renderServiceCalendar(){
+    var cal = document.getElementById("serviceCalView");
+    var win = calWindow(sjCalOffset);
+    var grid = calGridHtml(win, function(ds){
+      return serviceJobs.filter(function(j){ return j.serviceDate === ds; }).sort(function(a,b){ return (a.serviceTime||"").localeCompare(b.serviceTime||""); }).map(function(j){
+        var label = (j.serviceTime ? esc(j.serviceTime) + " " : "") + esc(j.jobName || "Untitled") + " / " + esc(j.id) + (j.assignedTo ? " · " + esc(j.assignedTo) : "");
+        return '<button type="button" class="cal-bubble ' + (j.completion.complete ? "done" : "pending") + '" data-open-sj="' + esc(j.id) + '" data-mv="sj" data-mvid="' + esc(j.id) + '" title="' + label + '">' + label + '</button>';
+      }).join("");
+    });
+    cal.innerHTML = calHeadHtml("sjc", "🛠️ Service Calendar — ", win) + '<div class="cal-grid">' + grid + '</div>';
+    calWire(cal, "sjc", function(){ return sjCalOffset; }, function(v){ sjCalOffset = v; }, renderServiceCalendar, function(){
       loadServiceJobsRemote().then(function(){ renderServiceCalendar(); toast("Calendar refreshed"); }).catch(function(){ renderServiceCalendar(); });
     });
     cal.querySelectorAll("[data-open-sj]").forEach(function(btn){
@@ -2020,7 +2226,7 @@
         '</div>');
     }
     el.innerHTML =
-      '<div class="cal-head"><h2 style="margin:0;font-size:18px;">📚 Library</h2><button class="btn small" id="libBackBtn">← Back to board</button></div>' +
+      '<div class="cal-head"><h2 style="margin:0;font-size:18px;">📚 Library</h2><button class="btn small back-btn" id="libBackBtn">← Back to board</button></div>' +
       '<div class="inline-row" style="margin-bottom:14px;">' +
         '<span style="font-weight:700;">Companies</span>' +
         '<select id="libSelect" class="compact-input" style="flex:1;max-width:420px;"><option value="">— select a company —</option>' +
@@ -2150,7 +2356,7 @@
 
     el.innerHTML =
       '<div class="cal-head">' +
-        '<button class="btn ghost" id="archiveBackBtn">← Back to Card view</button>' +
+        '<button class="btn back-btn" id="archiveBackBtn">← Back to Card view</button>' +
         '<span class="cal-month-label">On Hold / Lost / Archived</span>' +
         '<span></span>' +
       '</div>' +
@@ -2195,7 +2401,7 @@
 
     el.innerHTML =
       '<div class="cal-head">' +
-        '<button class="btn ghost" id="reportsBackBtn">← Back to Card view</button>' +
+        '<button class="btn back-btn" id="reportsBackBtn">← Back to Card view</button>' +
         '<span class="cal-month-label">Reports</span>' +
         '<span></span>' +
       '</div>' +
@@ -2623,23 +2829,12 @@
 
   function renderCalendar(){
     var cal = document.getElementById("calendarView");
-    var now = new Date();
-    var base = new Date(now.getFullYear(), now.getMonth() + calMonthOffset, 1);
-    var year = base.getFullYear(), month = base.getMonth();
-    var monthLabel = base.toLocaleDateString(undefined, {month:"long", year:"numeric"});
-    var firstWeekday = new Date(year, month, 1).getDay();
-    var daysInMonth = new Date(year, month+1, 0).getDate();
-    var todayStr = formatDateISO(now);
-
-    var cellsHtml = "";
-    for(var i=0; i<firstWeekday; i++){ cellsHtml += '<div class="cal-day empty"></div>'; }
-    for(var d=1; d<=daysInMonth; d++){
-      var dateStr = formatDateISO(new Date(year, month, d));
-
+    var win = calWindow(calMonthOffset);
+    var grid = calGridHtml(win, function(dateStr){
       var dayCards = cards.filter(function(c){ return c.bidDueDate === dateStr && calVisible(c); });
       var bubbles = dayCards.map(function(c){
         var label = esc(c.projectName || "Untitled") + " / " + esc(c.id);
-        return '<button type="button" class="cal-bubble ' + stageBubbleClass(c, verStatus(c, 0)) + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
+        return '<button type="button" class="cal-bubble ' + stageBubbleClass(c, verStatus(c, 0)) + '" data-open-card="' + c.id + '" data-mv="bid" data-mvid="' + esc(c.id) + '" title="' + label + '">' + label + '</button>';
       }).join("");
 
       // Change-order requests due this day: yellow until description, pricing, and a timestamp are filled in.
@@ -2650,7 +2845,7 @@
             var coValue = Number(co.amount)||0;
             var fulfilled = !!(co.description && co.description.trim() && coValue > 0);
             var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · " + esc(co.num);
-            bubbles += '<button type="button" class="cal-bubble ' + plainBubbleClass(c, fulfilled) + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
+            bubbles += '<button type="button" class="cal-bubble ' + plainBubbleClass(c, fulfilled) + '" data-open-card="' + c.id + '" data-mv="co" data-mvid="' + esc(c.id) + '" data-mvx="' + esc(co.num) + '" title="' + label + '">' + label + '</button>';
           }
         });
       });
@@ -2662,31 +2857,15 @@
           if(vi === 0) return;
           if(ver.dueDate === dateStr){
             var label = esc(c.projectName || "Untitled") + " / " + esc(c.id) + " · V" + (vi+1) + (ver.description ? " — " + esc(ver.description) : "");
-            bubbles += '<button type="button" class="cal-bubble ' + stageBubbleClass(c, verStatus(c, vi)) + '" data-open-card="' + c.id + '" title="' + label + '">' + label + '</button>';
+            bubbles += '<button type="button" class="cal-bubble ' + stageBubbleClass(c, verStatus(c, vi)) + '" data-open-card="' + c.id + '" data-mv="ver" data-mvid="' + esc(c.id) + '" data-mvx="' + vi + '" title="' + label + '">' + label + '</button>';
           }
         });
       });
+      return bubbles;
+    });
 
-      cellsHtml += '<div class="cal-day' + (dateStr === todayStr ? " today" : "") + '"><div class="cal-daynum">' + d + '</div>' + bubbles + '</div>';
-    }
-
-    cal.innerHTML =
-      '<div class="cal-head">' +
-        '<button class="btn ghost" id="calBackBtn">← Back to Card view</button>' +
-        '<div class="cal-nav">' +
-          '<button class="btn small" id="calPrevBtn">‹</button>' +
-          '<span class="cal-month-label">' + monthLabel + '</span>' +
-          '<button class="btn small" id="calNextBtn">›</button>' +
-          '<button class="btn" id="calRefreshBtn" title="Refresh" style="font-size:18px;padding:8px 16px;">🔄</button>' +
-        '</div>' +
-      '</div>' +
-      '<div class="cal-weekdays">' + ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(function(w){ return '<div>' + w + '</div>'; }).join("") + '</div>' +
-      '<div class="cal-grid">' + cellsHtml + '</div>';
-
-    cal.querySelector("#calBackBtn").addEventListener("click", showBoard);
-    cal.querySelector("#calPrevBtn").addEventListener("click", function(){ calMonthOffset--; renderCalendar(); });
-    cal.querySelector("#calNextBtn").addEventListener("click", function(){ calMonthOffset++; renderCalendar(); });
-    cal.querySelector("#calRefreshBtn").addEventListener("click", function(){ renderCalendar(); toast("Calendar refreshed"); });
+    cal.innerHTML = calHeadHtml("cal", "", win) + '<div class="cal-grid">' + grid + '</div>';
+    calWire(cal, "cal", function(){ return calMonthOffset; }, function(v){ calMonthOffset = v; }, renderCalendar, function(){ renderCalendar(); toast("Calendar refreshed"); });
     cal.querySelectorAll("[data-open-card]").forEach(function(btn){
       btn.addEventListener("click", function(){ openDetail(btn.dataset.openCard); });
     });
@@ -2784,7 +2963,8 @@
     var dot = document.getElementById("alertDot");
     var unread = alerts.filter(function(a){ return !a.read && isMineOrUnassigned(a); }).length;
     dot.style.display = unread ? "flex" : "none";
-    dot.textContent = unread;
+    dot.textContent = unread > 99 ? "99+" : unread;
+    document.getElementById("bellBtn").classList.toggle("ringing", unread > 0);
 
     if(!alerts.length){
       list.innerHTML = '<div class="alert-empty">No alerts yet.</div>';
@@ -2824,7 +3004,7 @@
     btn.addEventListener("click", function(){ closeOverlay(btn.dataset.close); });
   });
 
-  document.getElementById("f_bidDueTime").innerHTML = timeOptionsHtml("");
+  document.getElementById("f_bidDueTime").innerHTML = timeOptionsHtml(CONFIG.TIME_DEFAULT);
 
   var formDirectCustomers = [];
   function renderFormDirectCustomers(){
@@ -2865,7 +3045,7 @@
   document.getElementById("newCardBtn").addEventListener("click", function(){
     ["f_projectName","f_address","f_projectCustomer","f_bidDueDate"]
       .forEach(function(id){ document.getElementById(id).value = ""; });
-    document.getElementById("f_bidDueTime").value = "";
+    document.getElementById("f_bidDueTime").value = CONFIG.TIME_DEFAULT;
     document.getElementById("f_salesperson").innerHTML = teamMemberOptionsHtml("");
     document.getElementById("f_div_scs").checked = false;
     document.getElementById("f_div_security").checked = false;
@@ -3141,6 +3321,11 @@
     return "";
   }
 
+  function createdStampHtml(c){
+    var who = c.createdBy || (c.history && c.history[0] && c.history[0].by) || "";
+    var at = c.createdAt || (c.history && c.history[0] && c.history[0].at) || "", when = at ? new Date(at).toLocaleString() : "—";
+    return '<div class="field"><label>Added to the dashboard</label><div style="font-size:13px;">' + (who ? esc(who) : "—") + ' · ' + esc(when) + '</div></div>';
+  }
   function overviewPanel(c){
     return '' +
       '<div class="field"><label>Project number</label>' +
@@ -3149,6 +3334,7 @@
           '<button type="button" class="btn small" id="overrideProjectNumberBtn">✏️ Override number</button>' +
         '</div>' +
       '</div>' +
+      createdStampHtml(c) +
 
       '<p class="section-title" style="margin-top:16px;">Bid instructions</p>' +
       '<div class="notes-list" id="bidInstructionsList">' + bidInstructionsHtml(c) + '</div>' +
@@ -3196,7 +3382,7 @@
   function bidInstructionsHtml(c){
     if(!c.bidInstructions.length) return '<div class="note-empty">No bid instructions yet.</div>';
     return c.bidInstructions.slice().reverse().map(function(n){
-      return '<div class="note-item">' + esc(n.text) +
+      return '<div class="note-item"><span style="white-space:pre-wrap;">' + noteTextHtml(n.text) + '</span>' +
         '<div class="meta">' + esc(n.user || "Unknown") + ' — ' + new Date(n.timestamp).toLocaleString() + '</div></div>';
     }).join("");
   }
@@ -3494,7 +3680,7 @@
           '<div class="inline-row" style="margin-top:6px;"><button type="button" class="btn small primary" data-nl-save="' + key + '" data-idx="' + i + '">💾 Save</button>' +
           '<button type="button" class="btn small" data-nl-cancel="1">Cancel</button></div><div class="meta">' + meta + '</div></div>';
       }
-      return '<div class="note-item"><div style="white-space:pre-wrap;">' + esc(n.text) + '</div>' +
+      return '<div class="note-item"><div style="white-space:pre-wrap;">' + noteTextHtml(n.text) + '</div>' +
         '<div class="meta">' + meta + ' · <a href="#" data-nl-edit="' + key + '" data-idx="' + i + '">✏️ Edit</a></div></div>';
     }).join("");
     return '<div class="notes-list">' + items + '</div>' +
@@ -3516,7 +3702,7 @@
           '<button class="btn small" id="cancelNoteEditBtn">Cancel</button></div>' +
           '<div class="meta">' + meta + '</div></div>';
       }
-      return '<div class="note-item"><div style="white-space:pre-wrap;">' + esc(n.text) + '</div>' +
+      return '<div class="note-item"><div style="white-space:pre-wrap;">' + noteTextHtml(n.text) + '</div>' +
         '<div class="meta">' + meta + ' · <a href="#" class="edit-note-link" data-edit-note="' + i + '">✏️ Edit</a></div></div>';
     }).join("");
   }
@@ -3643,6 +3829,7 @@
         }
 
         var oldId = c.id;
+        if(supabaseClient) supabaseClient.from("documents").update({owner_id:newId}).eq("owner_type", "card").eq("owner_id", oldId).then(function(){});
         deleteCardRemote(oldId);
         c.id = newId;
         if(activeDetailId === oldId) activeDetailId = newId;
@@ -3984,6 +4171,7 @@
         var text = ta.value.trim();
         if(!text) return;
         c.pm.notes.push({text:text, user:getUser() || "Unknown", timestamp:new Date().toISOString()});
+        notifyMentions(c, text, "");
         saveCards();
         toast("Note saved");
         renderDetail();
@@ -4002,6 +4190,7 @@
         var text = host.querySelector("#editNoteText").value.trim();
         if(!text){ toast("A note can't be empty"); return; }
         if(n && text !== n.text){
+          notifyMentions(c, text, n.text);
           n.text = text; n.editedAt = new Date().toISOString(); n.editedBy = getUser() || "Unknown";
           saveCards(); toast("Note updated");
         }
@@ -4022,6 +4211,7 @@
           if(blk) Object.assign(c.changeOrders[Number(key.split(":")[1])], readRow(blk, ["amount"]));
         }
         list.push({text:text, user:getUser() || "Unknown", timestamp:new Date().toISOString()});
+        notifyMentions(c, text, "");
         saveCards(); updateSummaryBar(); renderBoard();
         toast("Note saved");
         renderDetail();
@@ -4037,7 +4227,7 @@
         var list = noteTarget(c, key), n = list && list[Number(btn.dataset.idx)];
         var text = eta ? eta.value.trim() : "";
         if(!text){ toast("A note can't be empty"); return; }
-        if(n && text !== n.text){ n.text = text; n.editedAt = new Date().toISOString(); n.editedBy = getUser() || "Unknown"; saveCards(); toast("Note updated"); }
+        if(n && text !== n.text){ notifyMentions(c, text, n.text); n.text = text; n.editedAt = new Date().toISOString(); n.editedBy = getUser() || "Unknown"; saveCards(); toast("Note updated"); }
         noteEdit = null; renderDetail();
       });
     });
@@ -4078,6 +4268,7 @@
         var text = ta.value.trim();
         if(!text) return;
         c.bidInstructions.push({text:text, user:getUser() || "Unknown", timestamp:new Date().toISOString()});
+        notifyMentions(c, text, "");
         saveCards();
         toast("Bid instruction saved");
         renderDetail();
@@ -4364,6 +4555,10 @@
     var e = v.estimate, d = CONFIG.ESTIMATE_DEFAULTS;
     ["taxRate","materialMarkup","laborMarkup"].forEach(function(k){ if(typeof e[k] !== "number") e[k] = d[k]; });
     delete e.taxLabor; // labor is never taxed
+    if(typeof e.scope !== "string") e.scope = "";
+    if(typeof e.techs !== "number") e.techs = CONFIG.ESTIMATE_CREW.techs;
+    if(typeof e.hoursPerDay !== "number") e.hoursPerDay = CONFIG.ESTIMATE_CREW.hoursPerDay;
+    if(typeof e.cables !== "number") e.cables = null;
     if(!Array.isArray(e.sections)) e.sections = [];
     e.sections.forEach(function(sec){ if(!Array.isArray(sec.subsections)) sec.subsections = []; sec.subsections.forEach(function(u){ if(!Array.isArray(u.items)) u.items = []; }); });
     return e;
@@ -4398,6 +4593,21 @@
     t.matPrice = t.matCost + t.matMarkup; t.labPrice = t.labCost + t.labMarkup; t.total = t.matPrice + t.labPrice + t.tax;
     return t;
   }
+  // At-a-glance numbers for the footer.
+  function estGlance(t, e){
+    var crew = (Number(e.techs) || 0) * (Number(e.hoursPerDay) || 0), cab = Number(e.cables) || 0;
+    var cost = t.matCost + t.labCost, price = t.matPrice + t.labPrice;
+    function d(x, fmt){ return isFinite(x) ? fmt(x) : "—"; }
+    return {
+      cables: cab ? String(r2(cab)) : "—",
+      days: crew ? String(Math.round(t.hours / crew * 10) / 10) : "—",
+      perCable: cab ? money(t.total / cab) : "—",
+      hrsPerCable: cab ? String(Math.round(t.hours / cab * 100) / 100) : "—",
+      labShare: t.total ? Math.round(t.labPrice / (t.matPrice + t.labPrice || 1) * 100) + "%" : "—",
+      margin: price ? (Math.round((price - cost) / price * 1000) / 10) + "%" : "—",
+      sellRate: t.hours ? money(t.labPrice / t.hours) + "/hr" : "—"
+    };
+  }
   function estSyncVersion(v){
     if(!v || !v.estimate || !estLineCount(v)) return;
     var t = estCalc(estFlat(v.estimate.sections), v.estimate);
@@ -4429,7 +4639,10 @@
     var v = estVer(); if(!v) return;
     var e = v.estimate, host = document.getElementById("estimateScreen");
     e.sections.forEach(function(sec){
-      setTxt(host, '[data-sectotal="' + sec.id + '"]', money(estCalc(estFlat([sec]), e).total));
+      var st = estCalc(estFlat([sec]), e);
+      setTxt(host, '[data-sectotal="' + sec.id + '"]', money(st.total));
+      setTxt(host, '[data-secprice="' + sec.id + '"]', money(st.matPrice + st.labPrice));
+      setTxt(host, '[data-sectax="' + sec.id + '"]', money(st.tax));
       sec.subsections.forEach(function(u){
         setTxt(host, '[data-subtotal="' + u.id + '"]', money(estCalc(u.items, e).total));
         u.items.forEach(function(it){
@@ -4444,6 +4657,8 @@
     setTxt(host, "#estT_mat", money(t.matPrice)); setTxt(host, "#estT_lab", money(t.labPrice));
     setTxt(host, "#estT_tax", money(t.tax)); setTxt(host, "#estT_total", money(t.total));
     setTxt(host, "#estT_hours", String(r2(t.hours)));
+    var g = estGlance(t, e);
+    ["cables","days","perCable","hrsPerCable","labShare","margin","sellRate"].forEach(function(k){ setTxt(host, "#estG_" + k, g[k]); });
   }
   function itemRowHtml(it, e){
     var n = estItemNums(it, e), lab = n.lab, defMk = lab ? e.laborMarkup : e.materialMarkup;
@@ -4472,31 +4687,37 @@
       '<div class="inline-row" style="margin-top:6px;"><button class="add-row-btn" data-act="addmat">+ Material</button><button class="add-row-btn" data-act="addlab">+ Labor</button></div></div>';
   }
   function secHtml(sec, e){
-    var col = !!estCollapsed[sec.id];
+    var col = !!estCollapsed[sec.id], secT = estCalc(estFlat([sec]), e);
     return '<div class="est-sec" data-sid="' + sec.id + '"><div class="est-sec-head">' +
       '<button class="btn small" data-act="togsec">' + (col ? "▶" : "▼") + '</button>' +
       '<input class="est-title" data-f="sectitle" value="' + esc(sec.title || "") + '" placeholder="Section">' +
       '<span class="mono" style="font-weight:700;font-size:15px;" data-sectotal="' + sec.id + '">' + money(estCalc(estFlat([sec]), e).total) + '</span>' +
       '<button class="est-mv" data-act="secup" title="Move up">▲</button><button class="est-mv" data-act="secdn" title="Move down">▼</button>' +
       '<button class="miniremove" data-act="delsec">Remove</button></div>' +
+      '<div class="est-sec-sub"><input class="est-scope" data-f="secscope" value="' + esc(sec.scope || "") + '" placeholder="Section scope (e.g. (2) 2D, (7) 1D WAP, (2) 1D cam)">' +
+        '<span class="est-sec-nums">Subtotal <b data-secprice="' + sec.id + '">' + money(secT.matPrice + secT.labPrice) + '</b> · Tax <b data-sectax="' + sec.id + '">' + money(secT.tax) + '</b></span></div>' +
       (col ? '' : sec.subsections.map(function(u){ return subHtml(u, e); }).join("") + '<div style="padding:0 12px 12px;"><button class="add-row-btn" data-act="addsub">+ Add subsection</button></div>') + '</div>';
   }
   function renderEstimate(){
     var c = estCard(), v = estVer(); if(!c || !v) return;
     var e = ensureEstimate(v), host = document.getElementById("estimateScreen");
     var oldBody = host.querySelector(".est-body"), scroll = oldBody ? oldBody.scrollTop : 0;
-    var t = estCalc(estFlat(e.sections), e);
+    var t = estCalc(estFlat(e.sections), e), g = estGlance(t, e);
     host.innerHTML =
-      '<div class="est-head"><button class="btn" data-act="back">← Back to card</button>' +
+      '<div class="est-head"><button class="btn back-btn" data-act="back">← Back to card</button>' +
         '<h2>Estimate — ' + esc(c.projectName || "Untitled") + ' <span class="mono" style="font-weight:400;color:var(--ink-soft);">' + esc(c.id) + ' · V' + (estCtx.vi + 1) + (v.stage ? " · " + esc(v.stage) : "") + '</span></h2>' +
         '<button class="btn small" data-act="toggleimport">⬆ Import JSON</button><button class="btn small" data-act="exportjson">⬇ Export JSON</button></div>' +
       '<div class="est-set">' +
         '<div class="field"><label>Tax rate %</label><input type="number" step="any" style="width:90px;" data-f="taxRate" value="' + esc(String(e.taxRate)) + '"></div>' +
         '<div class="field"><label>Default material markup %</label><input type="number" step="any" style="width:90px;" data-f="materialMarkup" value="' + esc(String(e.materialMarkup)) + '"></div>' +
         '<div class="field"><label>Default labor markup %</label><input type="number" step="any" style="width:90px;" data-f="laborMarkup" value="' + esc(String(e.laborMarkup)) + '"></div>' +
+        '<div class="field"><label>Total cables</label><input type="number" step="any" style="width:90px;" data-f="cables" value="' + (e.cables === null ? "" : esc(String(e.cables))) + '" placeholder="count"></div>' +
+        '<div class="field"><label>Techs</label><input type="number" step="any" style="width:64px;" data-f="techs" value="' + esc(String(e.techs)) + '"></div>' +
+        '<div class="field"><label>Hours / tech / day</label><input type="number" step="any" style="width:64px;" data-f="hoursPerDay" value="' + esc(String(e.hoursPerDay)) + '"></div>' +
         '<button class="btn small" data-act="clearmk" title="Remove every per-line markup so all lines follow the defaults" style="margin-bottom:9px;">Reset line markups</button>' +
         '<div style="font-size:11.5px;color:var(--ink-soft);padding-bottom:9px;max-width:380px;">Markup is added on top of cost. Tax applies to material only, never labor, and is figured on the sale price (cost + markup). A highlighted markup is a per-line override; blank follows the default. Untick Tax on a material line to exempt it.</div></div>' +
-      (estImportOpen ? '<div class="est-import"><div style="font-size:12.5px;margin-bottom:6px;">Paste the JSON Claude gave you, or choose a .json file.</div>' +
+      '<div class="est-scope-wrap"><label>Job scope</label><textarea data-f="scope" placeholder="Overall scope of work for this estimate">' + esc(e.scope || "") + '</textarea></div>' +
+      (estImportOpen ? '<div class="est-import"><div style="font-size:12.5px;margin-bottom:6px;">Paste the JSON Claude gave you, choose a .json file, or drop one anywhere on this page.</div>' +
         '<textarea id="estImportText" placeholder=\'{"sections":[…]}\'></textarea>' +
         '<div class="inline-row" style="margin-top:6px;"><input type="file" id="estImportFile" accept=".json,application/json">' +
           '<label class="checkline"><input type="radio" name="estMode" value="append" checked> Add to this estimate</label>' +
@@ -4507,7 +4728,14 @@
         '<button class="add-row-btn" data-act="addsec">+ Add section</button></div>' +
       '<div class="est-foot"><div>Materials<strong id="estT_mat">' + money(t.matPrice) + '</strong></div><div>Labor<strong id="estT_lab">' + money(t.labPrice) + '</strong></div>' +
         '<div>Tax<strong id="estT_tax">' + money(t.tax) + '</strong></div><div>Total<strong id="estT_total">' + money(t.total) + '</strong></div><div>Labor hours<strong id="estT_hours">' + r2(t.hours) + '</strong></div>' +
-        '<div style="margin-left:auto;font-size:11.5px;">Totals feed this version\'s Material / Labor / Tax / Hours automatically.</div></div>';
+        '<div style="margin-left:auto;font-size:11.5px;">Totals feed this version\'s Material / Labor / Tax / Hours automatically.</div></div>' +
+      '<div class="est-foot est-glance"><div>Total cables<strong id="estG_cables">' + g.cables + '</strong></div>' +
+        '<div title="Labor hours / (techs x hours per day)">Crew days<strong id="estG_days">' + g.days + '</strong></div>' +
+        '<div title="Total including tax / cables">$ per cable<strong id="estG_perCable">' + g.perCable + '</strong></div>' +
+        '<div>Labor hrs / cable<strong id="estG_hrsPerCable">' + g.hrsPerCable + '</strong></div>' +
+        '<div>Labor share of price<strong id="estG_labShare">' + g.labShare + '</strong></div>' +
+        '<div title="(price - cost) / price, before tax">Gross margin<strong id="estG_margin">' + g.margin + '</strong></div>' +
+        '<div>Labor sell rate<strong id="estG_sellRate">' + g.sellRate + '</strong></div></div>';
     var nb = host.querySelector(".est-body"); if(nb) nb.scrollTop = scroll;
     if(estFocusId){ var f = host.querySelector('[data-iid="' + estFocusId + '"] [data-f="description"]'); if(f) f.focus(); estFocusId = null; }
   }
@@ -4536,7 +4764,7 @@
     if(!Array.isArray(secs)) throw new Error('Expected "sections" (or "items") in the JSON');
     var out = secs.map(function(sc, i){
       var subs = Array.isArray(sc.subsections) ? sc.subsections : (Array.isArray(sc.items) ? [{title:sc.title || "Items", items:sc.items}] : []);
-      return {id:uid(), title:String(sc.title || ("Section " + (i + 1))), subsections: subs.map(function(u, j){
+      return {id:uid(), title:String(sc.title || ("Section " + (i + 1))), scope:String(sc.scope || ""), subsections: subs.map(function(u, j){
         return {id:uid(), title:String(u.title || ("Subsection " + (j + 1))), items:(Array.isArray(u.items) ? u.items : []).map(estNormItem)};
       })};
     });
@@ -4555,7 +4783,11 @@
       if(typeof d.taxRate === "number") e.taxRate = d.taxRate;
       if(typeof d.materialMarkup === "number") e.materialMarkup = d.materialMarkup;
       if(typeof d.laborMarkup === "number") e.laborMarkup = d.laborMarkup;
+      if(typeof d.scope === "string") e.scope = d.scope;
+      if(typeof d.cableCount === "number") e.cables = d.cableCount;
     } else {
+      if(!e.scope && typeof parsed.data.scope === "string") e.scope = parsed.data.scope;
+      if(e.cables === null && typeof parsed.data.cableCount === "number") e.cables = parsed.data.cableCount;
       e.sections = e.sections.concat(parsed.sections);
       if(typeof parsed.data.taxRate === "number" && !e.taxRate) e.taxRate = parsed.data.taxRate;
     }
@@ -4573,8 +4805,8 @@
       if(act === "toggleimport"){ estImportOpen = !estImportOpen; renderEstimate(); return; }
       if(act === "clearmk"){ estFlat(e.sections).forEach(function(it){ it.markup = null; }); estSaveSoon(); renderEstimate(); toast("Line markups reset — every line follows the defaults"); return; }
       if(act === "exportjson"){
-        var blob = new Blob([JSON.stringify({taxRate:e.taxRate, materialMarkup:e.materialMarkup, laborMarkup:e.laborMarkup,
-          sections:e.sections.map(function(sec){ return {title:sec.title, subsections:sec.subsections.map(function(u){ return {title:u.title, items:u.items.map(function(it){
+        var blob = new Blob([JSON.stringify({taxRate:e.taxRate, materialMarkup:e.materialMarkup, laborMarkup:e.laborMarkup, scope:e.scope || "", cableCount:e.cables === null ? undefined : e.cables,
+          sections:e.sections.map(function(sec){ return {title:sec.title, scope:sec.scope || "", subsections:sec.subsections.map(function(u){ return {title:u.title, items:u.items.map(function(it){
             var o = {type:it.type, description:it.description, qty:it.qty, unit:it.unit, unitCost:it.unitCost}; if(it.markup !== null && it.markup !== undefined) o.markup = it.markup; if(it.taxable === false && it.type !== "labor") o.taxable = false; return o; })}; })}; })}, null, 2)], {type:"application/json"});
         var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "estimate-" + estCtx.cardId + "-V" + (estCtx.vi + 1) + ".json"; a.click(); URL.revokeObjectURL(a.href);
         return;
@@ -4614,6 +4846,10 @@
       var val = el.type === "checkbox" ? el.checked : el.value;
       var rerender = false;
       if(f === "sectitle" && r.sec) r.sec.title = val;
+      else if(f === "secscope" && r.sec) r.sec.scope = val;
+      else if(f === "scope") e.scope = val;
+      else if(f === "cables") e.cables = (val === "" || isNaN(parseFloat(val))) ? null : parseFloat(val);
+      else if(f === "techs" || f === "hoursPerDay") e[f] = parseFloat(val) || 0;
       else if(f === "subtitle" && r.sub) r.sub.title = val;
       else if(r.item){
         var it = r.item;
@@ -4633,6 +4869,25 @@
       estSaveSoon();
       if(rerender) renderEstimate(); else estRefresh();
     }
+    // Drop a .json file anywhere on the estimate page: it loads into the import box (you still pick Add or Replace).
+    var dragDepth = 0;
+    function hasFile(ev){ return ev.dataTransfer && Array.prototype.indexOf.call(ev.dataTransfer.types || [], "Files") !== -1; }
+    host.addEventListener("dragenter", function(ev){ if(hasFile(ev)){ dragDepth++; host.classList.add("est-drop"); } });
+    host.addEventListener("dragleave", function(ev){ if(hasFile(ev)){ dragDepth = Math.max(0, dragDepth - 1); if(!dragDepth) host.classList.remove("est-drop"); } });
+    host.addEventListener("dragover", function(ev){ if(hasFile(ev)) ev.preventDefault(); });
+    host.addEventListener("drop", function(ev){
+      if(!hasFile(ev)) return;
+      ev.preventDefault(); dragDepth = 0; host.classList.remove("est-drop");
+      var file = ev.dataTransfer.files[0]; if(!file || !estVer()) return;
+      if(!/\.json$/i.test(file.name) && file.type !== "application/json"){ toast("That isn't a .json file"); return; }
+      var fr = new FileReader();
+      fr.onload = function(){
+        estImportOpen = true; renderEstimate();
+        var ta = host.querySelector("#estImportText"); if(ta) ta.value = fr.result;
+        toast("Loaded " + file.name + " — choose Add or Replace, then Import");
+      };
+      fr.readAsText(file);
+    });
     host.addEventListener("input", onField);
     host.addEventListener("change", function(ev){
       if(ev.target.id === "estImportFile"){
@@ -4914,7 +5169,6 @@
   function showLogin(){
     document.getElementById("loginScreen").style.display = "flex";
     document.getElementById("appHeader").style.display = "none";
-    document.getElementById("appFooter").style.display = "none";
     document.getElementById("board").style.display = "none";
     document.getElementById("libraryView").style.display = "none";
     document.getElementById("serviceCalView").style.display = "none";
@@ -4926,7 +5180,6 @@
     document.getElementById("loginScreen").style.display = "none";
     document.getElementById("appHeader").style.display = "flex";
     setTimeout(syncTopbarHeight, 0); setTimeout(syncTopbarHeight, 300);
-    document.getElementById("appFooter").style.display = "flex";
     document.getElementById("board").style.display = "flex";
   }
 
