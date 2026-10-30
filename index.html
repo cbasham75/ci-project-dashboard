@@ -107,7 +107,7 @@
   .bell-wrap{position:relative;}
   .bell{
     position:relative;border:1px solid var(--line);background:var(--paper-raised);
-    border-radius:10px;width:54px;height:54px;display:flex;align-items:center;justify-content:center;font-size:30px;
+    border-radius:16px;width:108px;height:108px;display:flex;align-items:center;justify-content:center;font-size:60px;
   }
   .bell .ico{display:inline-block;transform-origin:50% 8%;}
   .bell.ringing .ico{animation:bellSwing 15s ease-in-out infinite;}
@@ -118,13 +118,16 @@
   }
   @media (prefers-reduced-motion:reduce){ .bell.ringing .ico{animation:none;} }
   .bell .dot{
-    position:absolute;top:-8px;right:-8px;background:var(--red);color:#fff;
-    font-size:13px;font-weight:700;border-radius:12px;min-width:24px;height:24px;
-    display:flex;align-items:center;justify-content:center;padding:0 6px;border:2px solid var(--paper-raised);
+    position:absolute;top:-12px;right:-12px;background:var(--red);color:#fff;
+    font-size:24px;font-weight:700;border-radius:22px;min-width:44px;height:44px;
+    display:flex;align-items:center;justify-content:center;padding:0 10px;border:3px solid var(--paper-raised);
   }
+  .at-pop{position:fixed;z-index:200;background:var(--paper-raised);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:180px;max-height:220px;overflow:auto;padding:4px;}
+  .at-pop button{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--ink);padding:7px 10px;border-radius:6px;font-size:13.5px;cursor:pointer;}
+  .at-pop button.on,.at-pop button:hover{background:rgba(44,82,130,.15);color:var(--blue);font-weight:600;}
   .mention{background:rgba(44,82,130,.15);color:var(--blue);font-weight:700;border-radius:4px;padding:0 3px;}
   .alerts-panel{
-    position:absolute;right:0;top:62px;width:320px;max-height:400px;overflow:auto;
+    position:absolute;right:0;top:118px;width:320px;max-height:400px;overflow:auto;
     background:var(--paper-raised);border:1px solid var(--line);border-radius:8px;
     box-shadow:0 8px 24px rgba(0,0,0,.12);display:none;z-index:40;
   }
@@ -1215,11 +1218,11 @@
     });
     return out;
   }
-  // Alert each newly tagged person (skips yourself and anyone already tagged in the old text).
+  // Alert each newly tagged person (anyone already tagged in the old text is not alerted again).
   function notifyMentions(card, text, oldText){
     var before = oldText ? mentionedMembers(oldText) : [];
     mentionedMembers(text).forEach(function(name){
-      if(name === currentUserName || before.indexOf(name) !== -1) return;
+      if(before.indexOf(name) !== -1) return;
       var snip = String(text).replace(/\s+/g, " ").trim();
       if(snip.length > 90) snip = snip.slice(0, 90) + "…";
       pushAlert(card.id, card.projectName, (getUser() || "Someone") + " tagged you: \"" + snip + "\"", name);
@@ -2992,6 +2995,53 @@
     var wrap = document.querySelector(".bell-wrap");
     if(!wrap.contains(e.target)) document.getElementById("alertsPanel").classList.remove("open");
   });
+
+  /* ---------------- @ name suggestions in note boxes ---------------- */
+  (function atSuggest(){
+    var pop = null, ta = null, start = 0, items = [], sel = 0;
+    function isNoteTA(el){
+      return el && el.tagName === "TEXTAREA" && (el.id === "newNoteText" || el.id === "newBidInstructionText" || el.id === "editNoteText" ||
+        el.hasAttribute("data-nl-text") || el.hasAttribute("data-nl-edit-text"));
+    }
+    function close(){ if(pop){ pop.remove(); pop = null; } ta = null; items = []; }
+    function pick(name){
+      if(!ta) return;
+      var v = ta.value, end = ta.selectionStart;
+      ta.value = v.slice(0, start) + "@" + name + " " + v.slice(end);
+      var pos = start + name.length + 2;
+      ta.setSelectionRange(pos, pos);
+      var t = ta; close(); t.focus();
+    }
+    function draw(){
+      if(!pop){ pop = document.createElement("div"); pop.className = "at-pop"; document.body.appendChild(pop); }
+      pop.innerHTML = items.map(function(n, i){ return '<button type="button" data-at="' + esc(n) + '" class="' + (i === sel ? "on" : "") + '">@' + esc(n) + '</button>'; }).join("");
+      var r = ta.getBoundingClientRect();
+      pop.style.left = Math.max(8, r.left) + "px";
+      pop.style.top = Math.min(window.innerHeight - 230, r.bottom + 4) + "px";
+    }
+    document.addEventListener("input", function(e){
+      var el = e.target; if(!isNoteTA(el)){ if(pop && el !== ta) close(); return; }
+      var before = el.value.slice(0, el.selectionStart);
+      var m = /(^|\s)@([A-Za-z]*(?: [A-Za-z]*)?)$/.exec(before);
+      if(!m){ close(); return; }
+      var q = m[2].toLowerCase();
+      var list = teamMembers.filter(function(n){ var l = n.toLowerCase(); return !q || l.indexOf(q) === 0 || l.split(" ")[0].indexOf(q) === 0; });
+      if(!list.length || (list.length === 1 && list[0].toLowerCase() === q)){ close(); return; }
+      ta = el; start = before.length - m[2].length - 1; items = list.slice(0, 8); sel = 0; draw();
+    });
+    document.addEventListener("keydown", function(e){
+      if(!pop || e.target !== ta) return;
+      if(e.key === "ArrowDown"){ e.preventDefault(); sel = (sel + 1) % items.length; draw(); }
+      else if(e.key === "ArrowUp"){ e.preventDefault(); sel = (sel - 1 + items.length) % items.length; draw(); }
+      else if(e.key === "Enter" || e.key === "Tab"){ e.preventDefault(); pick(items[sel]); }
+      else if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); close(); }
+    }, true);
+    document.addEventListener("mousedown", function(e){
+      var b = e.target.closest && e.target.closest(".at-pop button");
+      if(b){ e.preventDefault(); pick(b.dataset.at); }
+      else if(pop && e.target !== ta) close();
+    });
+  })();
 
   /* ---------------- New card modal ---------------- */
   function openOverlay(id){ document.getElementById(id).classList.add("open"); }
