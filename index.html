@@ -1225,7 +1225,7 @@
       if(before.indexOf(name) !== -1) return;
       var snip = String(text).replace(/\s+/g, " ").trim();
       if(snip.length > 90) snip = snip.slice(0, 90) + "…";
-      pushAlert(card.id, card.projectName, (getUser() || "Someone") + " tagged you: \"" + snip + "\"", name);
+      pushAlert(card.id, card.projectName, (getUser() || "Someone") + " tagged you on " + card.id + (card.projectName ? " " + card.projectName : "") + ": \"" + snip + "\"", name);
     });
   }
   // Escapes note text and highlights tagged names.
@@ -1675,7 +1675,7 @@
     return {
       id:"", jobName:"", customer:"", address:"", assignedTo:"", salesperson:"",
       divisions:{scs:false, security:false, av:false, demo:false},
-      description:"", serviceDate:"", serviceTime:CONFIG.TIME_DEFAULT, amount:0,
+      description:"", serviceDate:"", serviceTime:CONFIG.TIME_DEFAULT, amount:0, notes:[],
       contacts:[], parking:"", workHours:"", accessMethod:"", additionalInfo:"",
       permitRequired:false, permitNumber:"", buildingPermitNumber:"", submittalsRequired:false,
       links:[],
@@ -1690,6 +1690,7 @@
     j.completion = Object.assign({}, b.completion, j.completion);
     if(!Array.isArray(j.contacts)) j.contacts = [];
     if(!Array.isArray(j.links)) j.links = [];
+    if(!Array.isArray(j.notes)) j.notes = [];
     return j;
   }
   async function loadServiceJobsRemote(){
@@ -1787,8 +1788,71 @@
     sjPending = [];
     var existing = id ? serviceJobs.find(function(j){ return j.id === id; }) : null;
     sjDraft = existing ? normalizeServiceJob(JSON.parse(JSON.stringify(existing))) : blankServiceJob();
+    sjNoteEdit = -1;
     renderServiceModal();
     openOverlay("serviceOverlay");
+  }
+
+  var sjNoteEdit = -1;
+  function sjNotesHtml(j){
+    var list = j.notes || [], last = list.length - 1;
+    var items = !list.length ? '<div class="note-empty">No notes yet. Type @ and a name to tag someone.</div>' : list.slice().reverse().map(function(n, ri){
+      var i = last - ri;
+      var meta = esc(n.user || "Unknown") + ' — ' + new Date(n.timestamp).toLocaleString() +
+        (n.editedAt ? ' · edited by ' + esc(n.editedBy || "Unknown") + ' ' + new Date(n.editedAt).toLocaleString() : '');
+      if(i === sjNoteEdit){
+        return '<div class="note-item"><textarea id="sjEditNote" style="min-height:70px;">' + esc(n.text) + '</textarea>' +
+          '<div class="inline-row" style="margin-top:6px;"><button type="button" class="btn small primary" data-sj-note-save="' + i + '">💾 Save</button>' +
+          '<button type="button" class="btn small" id="sjNoteCancel">Cancel</button></div><div class="meta">' + meta + '</div></div>';
+      }
+      return '<div class="note-item"><div style="white-space:pre-wrap;">' + noteTextHtml(n.text) + '</div>' +
+        '<div class="meta">' + meta + ' · <a href="#" data-sj-note-edit="' + i + '">✏️ Edit</a></div></div>';
+    }).join("");
+    return '<div class="notes-list">' + items + '</div>' +
+      '<div class="field"><textarea id="sjNewNote" placeholder="Add a note… type @ to tag a teammate"></textarea></div>' +
+      '<button type="button" class="btn small primary" id="sjAddNote">💾 Save note</button>';
+  }
+  // Notes save the moment you click Save note (like card notes); tagged people are alerted then.
+  // On a job that hasn't been created yet, the note waits in the draft and alerts go out when the job is created.
+  function sjPersistNotes(job){
+    var saved = serviceJobs.find(function(x){ return x.id === job.id; });
+    if(!saved || !supabaseClient) return;
+    saved.notes = JSON.parse(JSON.stringify(job.notes));
+    supabaseClient.from("service_jobs").upsert({id:saved.id, data:saved, updated_at:new Date().toISOString()}).then(function(res){
+      if(res && res.error) toast("Couldn't save the note — " + res.error.message);
+    });
+  }
+  function sjWireNotes(modal, j){
+    var add = modal.querySelector("#sjAddNote");
+    if(add) add.addEventListener("click", function(){
+      var ta = modal.querySelector("#sjNewNote"), text = ta ? ta.value.trim() : "";
+      if(!text) return;
+      var note = {text:text, user:getUser() || "Unknown", timestamp:new Date().toISOString()};
+      if(j.id){ notifyMentions({id:j.id, projectName:j.jobName}, text, ""); } else { note.alertPending = true; }
+      j.notes.push(note);
+      sjPersistNotes(j);
+      toast("Note saved");
+      renderServiceModal();
+    });
+    modal.querySelectorAll("[data-sj-note-edit]").forEach(function(a){
+      a.addEventListener("click", function(e){ e.preventDefault(); sjNoteEdit = Number(a.dataset.sjNoteEdit); renderServiceModal(); });
+    });
+    var cancel = modal.querySelector("#sjNoteCancel");
+    if(cancel) cancel.addEventListener("click", function(){ sjNoteEdit = -1; renderServiceModal(); });
+    var sv = modal.querySelector("[data-sj-note-save]");
+    if(sv){
+      var eta = modal.querySelector("#sjEditNote"); if(eta) eta.focus();
+      sv.addEventListener("click", function(){
+        var n = j.notes[Number(sv.dataset.sjNoteSave)], text = eta ? eta.value.trim() : "";
+        if(!text){ toast("A note can't be empty"); return; }
+        if(n && text !== n.text){
+          if(j.id) notifyMentions({id:j.id, projectName:j.jobName}, text, n.text);
+          n.text = text; n.editedAt = new Date().toISOString(); n.editedBy = getUser() || "Unknown";
+          sjPersistNotes(j); toast("Note updated");
+        }
+        sjNoteEdit = -1; renderServiceModal();
+      });
+    }
   }
 
   // Change a saved service ticket's number. Refuses blanks and numbers already used; moves its documents with it.
@@ -1857,6 +1921,9 @@
         '<div class="field"><label>Site contact(s)</label><div id="sjContacts">' + sjContactsHtml() + '</div><button type="button" class="add-row-btn" id="sjAddContact">+ Add contact</button></div>' +
         '<div class="field"><label>Access / site notes (parking, how to get in, who to see)</label><textarea data-sj="additionalInfo">' + esc(j.additionalInfo) + '</textarea></div>' +
 
+        '<p class="section-title" style="margin-top:18px;">Notes</p>' +
+        sjNotesHtml(j) +
+
         '<p class="section-title" style="margin-top:18px;">Completion</p>' +
         '<div class="row2">' +
           '<div class="field">' + chk("Job complete","completion.complete",cp.complete) + '</div>' +
@@ -1906,6 +1973,7 @@
     });
     modal.querySelector("#sjAddContact").addEventListener("click", function(){ sjDraft.contacts.push({name:""}); renderServiceModal(); });
     modal.querySelector("#sjCloseX").addEventListener("click", function(){ closeOverlay("serviceOverlay"); });
+    sjWireNotes(modal, j);
     var sjNumBtn = modal.querySelector("#sjChangeNumBtn");
     if(sjNumBtn) sjNumBtn.addEventListener("click", function(){ changeServiceNumber(j); });
     var sjDocBtn = modal.querySelector("#docsHeadBtn");
@@ -1942,6 +2010,9 @@
       job.createdAt = new Date().toISOString();
       job.createdBy = getUser();
     }
+    (job.notes || []).forEach(function(n){
+      if(n.alertPending){ notifyMentions({id:job.id, projectName:job.jobName}, n.text, ""); delete n.alertPending; }
+    });
     var p = supabaseClient
       ? supabaseClient.from("service_jobs").upsert({id:job.id, data:job, updated_at:new Date().toISOString()})
       : Promise.resolve({});
@@ -3000,7 +3071,7 @@
   (function atSuggest(){
     var pop = null, ta = null, start = 0, items = [], sel = 0;
     function isNoteTA(el){
-      return el && el.tagName === "TEXTAREA" && (el.id === "newNoteText" || el.id === "newBidInstructionText" || el.id === "editNoteText" ||
+      return el && el.tagName === "TEXTAREA" && (el.id === "newNoteText" || el.id === "newBidInstructionText" || el.id === "editNoteText" || el.id === "sjNewNote" || el.id === "sjEditNote" ||
         el.hasAttribute("data-nl-text") || el.hasAttribute("data-nl-edit-text"));
     }
     function close(){ if(pop){ pop.remove(); pop = null; } ta = null; items = []; }
