@@ -2608,11 +2608,11 @@
     infoReqWire(el, sel);
     libTechsWire(el);
     el.querySelector("#libBackBtn").addEventListener("click", showBoard);
-    el.querySelector("#libSelect").addEventListener("change", function(e){ libSelectedId = e.target.value; libOpen = true; renderLibrary(); });
+    el.querySelector("#libSelect").addEventListener("change", function(e){ libSelectedId = e.target.value; libOpen = true; irReset(); renderLibrary(); });
     el.querySelector("#libNewBtn").addEventListener("click", function(){
       var co = blankCompany();
       libraryCompanies.push(co);
-      libSelectedId = co.id; libOpen = true;
+      libSelectedId = co.id; libOpen = true; irReset();
       renderLibrary();
       var n = el.querySelector('[data-co="name"]'); if(n) n.focus();
     });
@@ -2636,7 +2636,7 @@
         if(!confirm("Delete " + (sel.name || "this company") + " from the Library? Projects using it keep the name as text.")) return;
         deleteCompanyRemote(sel.id).then(function(){
           libraryCompanies = libraryCompanies.filter(function(c){ return c.id !== sel.id; });
-          libSelectedId = "";
+          libSelectedId = ""; irReset();
           renderLibrary();
         });
       });
@@ -5662,7 +5662,8 @@
   })();
 
   /* ---------------- Customer info form (private link) ---------------- */
-  var infoRequests = [], irOpen = false, irReview = "", irLink = "";
+  var infoRequests = [], irOpen = false, irReview = "", irLink = "", irLinkToken = "", irHistory = false;
+  function irReset(){ irOpen = false; irReview = ""; irLink = ""; irLinkToken = ""; }
   function irFieldMap(){
     var m = {}; CONFIG.INFO_FORM_GROUPS.forEach(function(g){ g.fields.forEach(function(f){ m[f[0]] = {key:f[0], label:f[1], type:f[2] || "text", group:g.label}; }); });
     return m;
@@ -5693,21 +5694,28 @@
     return '<div class="subcard" style="margin-bottom:12px;"><p class="section-title">Request information from ' + esc(sel.name || "this company") + '</p>' +
       '<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;">Pick what to ask for. You get a private link to paste into your own email; the customer fills it out (no login) and you review before anything changes in the Library.</div>' +
       CONFIG.INFO_FORM_GROUPS.map(function(g){ return '<label class="checkline" style="display:block;margin-bottom:4px;"><input type="checkbox" data-ir-group="' + g.key + '" ' + (g.on ? "checked" : "") + '> <b>' + esc(g.label) + '</b> <span style="color:var(--ink-soft);font-size:11.5px;">(' + g.fields.map(function(f){ return esc(f[1]); }).slice(0, 4).join(", ") + (g.fields.length > 4 ? ", …" : "") + ')</span></label>'; }).join("") +
-      '<div class="inline-row" style="margin-top:8px;"><button class="btn small primary" id="irCreateBtn">Create link</button><button class="btn small" id="irCloseBtn">Close</button></div>' +
+      '<div class="inline-row" style="margin-top:8px;">' + (irLink ? '' : '<button class="btn small primary" id="irCreateBtn">Create link</button>') +
+        (irLink ? '<button class="btn small" id="irCancelLinkBtn" title="Turn this link off so the customer can no longer submit it">Cancel this link</button>' : '') +
+        '<button class="btn small" id="irCloseBtn">' + (irLink ? 'Done' : 'Cancel') + '</button></div>' +
       (irLink ? '<div class="inline-row" style="margin-top:10px;"><input type="text" readonly id="irLinkBox" class="compact-input" style="flex:1;" value="' + esc(irLink) + '"><button class="btn small primary" id="irCopyBtn">📋 Copy link</button></div>' : '') + '</div>';
   }
   function irStatusLabel(r){ return {pending:"⏳ Waiting for customer", submitted:"📥 Submitted — review", applied:"✅ Applied", ignored:"Ignored", cancelled:"Cancelled"}[r.status] || r.status; }
   function infoReqListHtml(){
-    var list = infoRequests.filter(function(r){ return r.status !== "cancelled"; });
-    if(!list.length) return '';
+    var exists = {}; libraryCompanies.forEach(function(c){ exists[c.id] = true; });
+    var mine = infoRequests.filter(function(r){ return exists[r.company_id] && (!libSelectedId || r.company_id === libSelectedId); });
+    var active = mine.filter(function(r){ return r.status === "pending" || r.status === "submitted"; });
+    var past = mine.filter(function(r){ return !(r.status === "pending" || r.status === "submitted"); });
+    if(!active.length && !past.length) return '';
     var rv = irReview ? infoRequests.find(function(r){ return r.token === irReview; }) : null;
-    return '<div class="subcard" style="margin-top:14px;"><p class="section-title">Customer info requests</p>' + (rv ? irReviewHtml(rv) : '') +
-      list.map(function(r){
-        return '<div class="ir-row"><b>' + esc(r.company_name) + '</b><span>' + esc(irStatusLabel(r)) + '</span><span style="color:var(--ink-soft);font-size:11.5px;">' + (r.requested_fields || []).length + ' fields · ' + new Date(r.created_at).toLocaleDateString() + (r.parent_token ? " · follow-up" : "") + '</span>' +
-          '<span style="margin-left:auto;display:flex;gap:6px;">' +
-          (r.status === "pending" ? '<button class="btn small" data-ir-copy="' + esc(r.token) + '">📋 Copy link</button><button class="btn small" data-ir-cancel="' + esc(r.token) + '">Cancel</button>' : '') +
-          (r.status === "submitted" ? '<button class="btn small primary" data-ir-review="' + esc(r.token) + '">Review</button>' : '') + '</span></div>';
-      }).join("") + '</div>';
+    function row(r){
+      return '<div class="ir-row"><b>' + esc(r.company_name) + '</b><span>' + esc(irStatusLabel(r)) + '</span><span style="color:var(--ink-soft);font-size:11.5px;">' + (r.requested_fields || []).length + ' fields · ' + new Date(r.created_at).toLocaleDateString() + (r.parent_token ? " · follow-up" : "") + '</span>' +
+        '<span style="margin-left:auto;display:flex;gap:6px;">' +
+        (r.status === "pending" ? '<button class="btn small" data-ir-copy="' + esc(r.token) + '">📋 Copy link</button><button class="btn small" data-ir-cancel="' + esc(r.token) + '">Cancel link</button>' : '') +
+        (r.status === "submitted" ? '<button class="btn small primary" data-ir-review="' + esc(r.token) + '">Review</button><button class="btn small" data-ir-dismiss="' + esc(r.token) + '">Dismiss</button>' : '') + '</span></div>';
+    }
+    return '<div class="subcard" style="margin-top:14px;"><p class="section-title">Customer info requests' + (libSelectedId ? ' — this company' : '') + '</p>' + (rv ? irReviewHtml(rv) : '') +
+      (active.length ? active.map(row).join("") : '<div class="note-empty">Nothing waiting.</div>') +
+      (past.length ? '<button class="add-row-btn" id="irHistBtn" style="margin-top:8px;">' + (irHistory ? "▼ Hide" : "▶ Show") + ' finished requests (' + past.length + ')</button>' + (irHistory ? past.map(row).join("") : '') : '') + '</div>';
   }
   function irAnswerText(v){ if(v === true) return "Yes"; if(v === false) return "No"; return v === undefined || v === null ? "" : String(v); }
   function irReviewHtml(r){
@@ -5733,7 +5741,16 @@
   }
   function infoReqWire(el, sel){
     var rb = el.querySelector("#libReqBtn"); if(rb) rb.addEventListener("click", function(){ irOpen = !irOpen; irLink = ""; renderLibrary(); });
-    var cl = el.querySelector("#irCloseBtn"); if(cl) cl.addEventListener("click", function(){ irOpen = false; irLink = ""; renderLibrary(); });
+    var cl = el.querySelector("#irCloseBtn"); if(cl) cl.addEventListener("click", function(){ irReset(); renderLibrary(); });
+    var cn = el.querySelector("#irCancelLinkBtn");
+    if(cn) cn.addEventListener("click", function(){
+      if(!confirm("Turn this link off? The customer will no longer be able to submit it.")) return;
+      irSetStatus(irLinkToken, "cancelled", {resolved_at:new Date().toISOString()}).then(function(){ irReset(); renderLibrary(); toast("Link cancelled"); });
+    });
+    var hb = el.querySelector("#irHistBtn"); if(hb) hb.addEventListener("click", function(){ irHistory = !irHistory; renderLibrary(); });
+    el.querySelectorAll("[data-ir-dismiss]").forEach(function(b){ b.addEventListener("click", function(){
+      irSetStatus(b.dataset.irDismiss, "ignored", {resolved_at:new Date().toISOString()}).then(function(){ if(irReview === b.dataset.irDismiss) irReview = ""; renderLibrary(); toast("Dismissed — nothing changed"); });
+    }); });
     var cr = el.querySelector("#irCreateBtn");
     if(cr) cr.addEventListener("click", function(){
       var keys = [];
@@ -5742,7 +5759,7 @@
       if(!(sel.name || "").trim()){ toast("Save the company with a name first"); return; }
       saveCompanyRemote(sel).then(function(){ return irCreate(sel, keys, null); }).then(function(tok){
         if(!tok) return;
-        irLink = irUrl(tok);
+        irLink = irUrl(tok); irLinkToken = tok;
         loadInfoRequestsRemote().catch(function(){}).then(function(){ renderLibrary(); copyText(irLink, "Link copied — paste it into your email"); });
       });
     });
@@ -5768,7 +5785,7 @@
       });
       saveCompanyRemote(co).then(function(res){
         if(res && res.error){ toast("Couldn't save — " + res.error.message); return; }
-        return irSetStatus(rv.token, "applied", {resolved_at:new Date().toISOString()}).then(function(){ irReview = ""; libSelectedId = co.id; renderLibrary(); toast("Applied " + n + " change" + (n === 1 ? "" : "s") + " to " + co.name); });
+        return irSetStatus(rv.token, "applied", {resolved_at:new Date().toISOString()}).then(function(){ irReset(); libSelectedId = co.id; renderLibrary(); toast("Applied " + n + " change" + (n === 1 ? "" : "s") + " to " + co.name); });
       });
     });
     var fo = el.querySelector("#irFollowBtn");
@@ -5779,7 +5796,7 @@
       irCreate(co, missing, rv.token).then(function(tok){
         if(!tok) return;
         irSetStatus(rv.token, "applied", {resolved_at:new Date().toISOString()});
-        irLink = irUrl(tok); irOpen = true; irReview = "";
+        irLink = irUrl(tok); irLinkToken = tok; irOpen = true; irReview = "";
         loadInfoRequestsRemote().catch(function(){}).then(function(){ renderLibrary(); copyText(irLink, "Follow-up link copied (" + missing.length + " missing field" + (missing.length === 1 ? "" : "s") + ")"); });
       });
     });
