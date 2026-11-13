@@ -2603,9 +2603,10 @@
         '<button class="btn small primary" id="libNewBtn">+ New company</button>' +
       '</div>' +
       (sorted.length || sel ? '' : '<div class="note-empty">No companies yet — click “+ New company” to add your first.</div>') +
-      infoReqBuilderHtml(sel) + detail + infoReqListHtml();
+      infoReqBuilderHtml(sel) + detail + infoReqListHtml() + libTechsHtml();
 
     infoReqWire(el, sel);
+    libTechsWire(el);
     el.querySelector("#libBackBtn").addEventListener("click", showBoard);
     el.querySelector("#libSelect").addEventListener("change", function(e){ libSelectedId = e.target.value; libOpen = true; renderLibrary(); });
     el.querySelector("#libNewBtn").addEventListener("click", function(){
@@ -2671,7 +2672,7 @@
     document.getElementById("reportsView").style.display = "none";
     document.getElementById("serviceCalView").style.display = "none";
     document.getElementById("libraryView").style.display = "block";
-    loadLibraryRemote().then(function(){ return loadInfoRequestsRemote().catch(function(){}); }).then(renderLibrary).catch(function(){ renderLibrary(); });
+    loadLibraryRemote().then(function(){ return loadTechsRemote().then(function(t){ techs = t; }).catch(function(){}); }).then(function(){ return loadInfoRequestsRemote().catch(function(){}); }).then(renderLibrary).catch(function(){ renderLibrary(); });
   }
   function showServiceCalendar(){
     hideExtraViews();
@@ -6068,6 +6069,41 @@
     loadServiceJobsRemote().then(function(){ if(document.getElementById("projCalView").style.display !== "none") renderProjCal(); }).catch(function(){});
   }
 
+  /* ---------------- Library: Technicians ---------------- */
+  function libTechsHtml(){
+    return '<div class="subcard" style="margin-top:14px;"><p class="section-title">👷 Technicians</p>' +
+      '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px;">Techs you can assign to service jobs and project trips. They don\'t need a login.</div>' +
+      '<div id="libTechList">' + techListHtml() + '</div>' +
+      '<div class="inline-row" style="margin-top:8px;"><input type="text" id="libTechName" class="compact-input" style="flex:1;max-width:320px;" placeholder="Technician name"><button class="btn small primary" id="libTechAdd">+ Add</button></div></div>';
+  }
+  function libTechsWire(el){
+    var list = el.querySelector("#libTechList"); if(!list) return;
+    function wireDel(){
+      list.querySelectorAll("[data-tech-del]").forEach(function(b){
+        b.addEventListener("click", async function(){
+          var n = b.dataset.techDel;
+          if(!confirm("Remove " + n + " from the technician list? Jobs that already list them keep the name.")) return;
+          var prev = techs.slice();
+          techs = techs.filter(function(x){ return x !== n; });
+          var res = await saveTechsRemote(); if(res && res.error){ techs = prev; toast("Couldn't save: " + res.error.message); return; }
+          list.innerHTML = techListHtml(); wireDel();
+        });
+      });
+    }
+    wireDel();
+    async function add(){
+      var inp = el.querySelector("#libTechName"), n = inp.value.trim().replace(/\s+/g, " ");
+      if(!n) return;
+      if(techs.some(function(x){ return x.toLowerCase() === n.toLowerCase(); })){ toast(n + " is already on the list"); return; }
+      var prev = techs.slice();
+      techs.push(n); techs.sort(function(a, b){ return a.localeCompare(b); });
+      var res = await saveTechsRemote(); if(res && res.error){ techs = prev; toast("Couldn't save: " + res.error.message); return; }
+      inp.value = ""; list.innerHTML = techListHtml(); wireDel(); toast("Added " + n);
+    }
+    el.querySelector("#libTechAdd").addEventListener("click", add);
+    el.querySelector("#libTechName").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); add(); } });
+  }
+
   /* ---------------- Suggestion box ---------------- */
   var suggestions = [], sgShowDone = false;
   function myEmail(){ return ((currentSession && currentSession.user && currentSession.user.email) || "").toLowerCase(); }
@@ -6236,34 +6272,7 @@
       '<button class="btn small primary" id="st_docMaxSave">Save</button></div>' +
       '<div style="margin-top:10px;font-size:12px;color:var(--ink-soft);">Storage used: <strong>' + fmtSize(b) + '</strong> of ' + DOC_INCLUDED_GB + ' GB included (' + (b / (DOC_INCLUDED_GB * 1073741824) * 100).toFixed(1) + '%)' +
       '<div class="meter" style="height:10px;"><div style="width:' + Math.min(100, b / (DOC_INCLUDED_GB * 1073741824) * 100).toFixed(1) + '%"></div></div></div>' +
-      '<div class="note-empty" style="margin-top:6px;">Files bigger than the project-wide Supabase upload limit will still be refused by Supabase — raise it under Storage → Settings in the Supabase dashboard.</div>' +
-      '<p class="section-title" style="margin-top:20px;">Technicians</p>' +
-      '<div class="note-empty">Technicians you can assign to service jobs and project trips. They don\'t need a login.</div>' +
-      '<div id="st_techList">' + techListHtml() + '</div>' +
-      '<div class="inline-row" style="margin-top:8px;"><input type="text" id="st_techName" class="compact-input" style="flex:1;" placeholder="Technician name"><button class="btn small primary" id="st_techAdd">+ Add</button></div>';
-    function redrawTechs(){ document.getElementById("st_techList").innerHTML = techListHtml(); wireTechRemove(); }
-    function wireTechRemove(){
-      document.querySelectorAll("[data-tech-del]").forEach(function(b){
-        b.addEventListener("click", async function(){
-          var n = b.dataset.techDel;
-          if(!confirm("Remove " + n + " from the technician list? Jobs that already list them keep the name.")) return;
-          techs = techs.filter(function(x){ return x !== n; });
-          var res = await saveTechsRemote(); if(res && res.error){ toast("Couldn't save: " + res.error.message); return; }
-          redrawTechs();
-        });
-      });
-    }
-    wireTechRemove();
-    async function addTech(){
-      var inp = document.getElementById("st_techName"), n = inp.value.trim().replace(/\s+/g, " ");
-      if(!n) return;
-      if(techs.some(function(x){ return x.toLowerCase() === n.toLowerCase(); })){ toast(n + " is already on the list"); return; }
-      techs.push(n); techs.sort(function(a,b){ return a.localeCompare(b); });
-      var res = await saveTechsRemote(); if(res && res.error){ techs = techs.filter(function(x){ return x !== n; }); toast("Couldn't save: " + res.error.message); return; }
-      inp.value = ""; redrawTechs(); toast("Added " + n);
-    }
-    document.getElementById("st_techAdd").addEventListener("click", addTech);
-    document.getElementById("st_techName").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); addTech(); } });
+      '<div class="note-empty" style="margin-top:6px;">Files bigger than the project-wide Supabase upload limit will still be refused by Supabase — raise it under Storage → Settings in the Supabase dashboard.</div>';
     document.getElementById("st_docMaxSave").addEventListener("click", async function(){
       var mb = Number(document.getElementById("st_docMax").value);
       if(!(mb > 0)){ toast("Enter a size in MB"); return; }
