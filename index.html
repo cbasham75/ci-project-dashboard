@@ -2594,7 +2594,7 @@
         '</div>');
     }
     el.innerHTML =
-      '<div class="cal-head"><h2 style="margin:0;font-size:18px;">📚 Library</h2><button class="btn small back-btn" id="libBackBtn">← Back to board</button></div>' +
+      '<div class="cal-head"><h2 style="margin:0;font-size:18px;">📚 Library</h2><div class="inline-row"><button class="btn small" id="libRefreshBtn" title="Check for new customer submissions and company changes">🔄 Refresh</button><button class="btn small back-btn" id="libBackBtn">← Back to board</button></div></div>' +
       '<div class="inline-row" style="margin-bottom:14px;">' +
         '<span style="font-weight:700;">Companies</span>' +
         '<select id="libSelect" class="compact-input" style="flex:1;max-width:420px;"><option value="">— select a company —</option>' +
@@ -2608,6 +2608,11 @@
     infoReqWire(el, sel);
     libTechsWire(el);
     el.querySelector("#libBackBtn").addEventListener("click", showBoard);
+    el.querySelector("#libRefreshBtn").addEventListener("click", function(){
+      var editing = el.querySelector("[data-co]") && sel;
+      if(editing && !confirm("Refreshing reloads the company from the database. Any unsaved edits to it will be lost. Continue?")) { irRefresh(true); return; }
+      loadLibraryRemote().then(function(){ return irRefresh(false); }).then(function(){ renderLibrary(); toast("Refreshed"); }).catch(function(){ toast("Couldn't refresh — check your connection"); });
+    });
     el.querySelector("#libSelect").addEventListener("change", function(e){ libSelectedId = e.target.value; libOpen = true; irReset(); renderLibrary(); });
     el.querySelector("#libNewBtn").addEventListener("click", function(){
       var co = blankCompany();
@@ -5700,7 +5705,21 @@
       (irLink ? '<div class="inline-row" style="margin-top:10px;"><input type="text" readonly id="irLinkBox" class="compact-input" style="flex:1;" value="' + esc(irLink) + '"><button class="btn small primary" id="irCopyBtn">📋 Copy link</button></div>' : '') + '</div>';
   }
   function irStatusLabel(r){ return {pending:"⏳ Waiting for customer", submitted:"📥 Submitted — review", applied:"✅ Applied", ignored:"Ignored", cancelled:"Cancelled"}[r.status] || r.status; }
-  function infoReqListHtml(){
+  function infoReqListHtml(){ return '<div id="irListWrap">' + irListInner() + '</div>'; }
+  // Pulls the latest requests; redraws only the request list (never the company form, so nothing you're typing is lost).
+  function irRefresh(manual){
+    if(!currentSession || !supabaseClient) return Promise.resolve();
+    var before = infoRequests.filter(function(r){ return r.status === "submitted"; }).length;
+    return loadInfoRequestsRemote().then(function(){
+      var after = infoRequests.filter(function(r){ return r.status === "submitted"; }).length;
+      var lib = document.getElementById("libraryView"), wrap = lib && lib.querySelector("#irListWrap");
+      if(lib && lib.style.display !== "none" && wrap && !irReview){ wrap.innerHTML = irListInner(); infoReqWire(wrap, null); }
+      if(after > before) toast("📥 A customer just submitted their info — see the Library");
+      else if(manual) toast("Up to date");
+    }).catch(function(){});
+  }
+  setInterval(function(){ var lib = document.getElementById("libraryView"); if(currentSession && lib && lib.style.display !== "none" && !document.hidden) irRefresh(false); }, 15000);
+  function irListInner(){
     var exists = {}; libraryCompanies.forEach(function(c){ exists[c.id] = true; });
     var mine = infoRequests.filter(function(r){ return exists[r.company_id] && (!libSelectedId || r.company_id === libSelectedId); });
     var active = mine.filter(function(r){ return r.status === "pending" || r.status === "submitted"; });
@@ -6620,6 +6639,7 @@
     try {
       alerts = await loadAlertsRemote();
       renderAlerts();
+      irRefresh(false);
 
       if(!activeDetailId){
         try { await loadLibraryRemote(); } catch(e){}
