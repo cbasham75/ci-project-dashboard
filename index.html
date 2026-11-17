@@ -250,6 +250,8 @@
   .pc-bar.cl{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0;} .pc-bar.cr{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0;}
   .pc-bar.st-done{opacity:.55;} .pc-bar.st-in_progress{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85);}
   .pc-bar.warn{outline:2px solid var(--red);outline-offset:0;} .pc-bar.dragging{opacity:.4;}
+  .pc-bar{position:relative;} .pc-h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;} .pc-h.l{left:0;} .pc-h.r{right:0;}
+  .pc-bar:hover .pc-h{background:rgba(255,255,255,.4);} .pc-day.hl{background:rgba(44,82,130,.22);}
   .pc-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;margin-bottom:10px;}
   .pc-chip i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
   @media print{
@@ -838,6 +840,9 @@
     TRIP_SERVICE_COLOR: "#4a5568",
     TRIP_DEFAULT_START: "07:00",
     TRIP_DEFAULT_END: "15:00",
+    // Alert roles (editable in Settings; these are the starting values)
+    DEFAULT_ROLES: [{key:"billing",label:"Billing",people:["Hollie Treese"]},{key:"sales",label:"Sales",people:["Tyler Murray"]},{key:"estimates",label:"Estimates",people:["Chris Basham"]},{key:"ops",label:"Ops/Projects",people:["Hali McNair","Kerry Peace"]}],
+    DEFAULT_ALERT_ROUTES: {estimateCompleteFallback:"sales"},
     CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
     CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
     CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
@@ -1306,7 +1311,7 @@
 
   /* ---------------- @ mentions in notes ---------------- */
   // Matches "@Jeremy" or "@Jeremy Sanders" (first or full name of a team member, case-insensitive).
-  function mentionedMembers(text){
+  function mentionedMembers(text, noGroups){
     var out = [], t = String(text || "").toLowerCase();
     teamMembers.forEach(function(name){
       var full = name.toLowerCase(), first = full.split(" ")[0];
@@ -1314,13 +1319,16 @@
       var re = new RegExp("@(" + full.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+") + (dupFirst ? "" : "|" + first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) + ")(?![a-z0-9])");
       if(re.test(t) && out.indexOf(name) === -1) out.push(name);
     });
+    if(!noGroups) groupMentions(text).forEach(function(n){ if(out.indexOf(n) === -1) out.push(n); });
     return out;
   }
   // Alert each newly tagged person (anyone already tagged in the old text is not alerted again).
   function notifyMentions(card, text, oldText){
     var before = oldText ? mentionedMembers(oldText) : [];
+    var explicit = mentionedMembers(text, true);
     mentionedMembers(text).forEach(function(name){
       if(before.indexOf(name) !== -1) return;
+      if(explicit.indexOf(name) === -1 && name === getUser()) return; // @all / @role doesn't alert the sender
       var snip = String(text).replace(/\s+/g, " ").trim();
       if(snip.length > 90) snip = snip.slice(0, 90) + "…";
       pushAlert(card.id, card.projectName, (getUser() || "Someone") + " tagged you on " + card.id + (card.projectName ? " " + card.projectName : "") + ": \"" + snip + "\"", name);
@@ -1333,6 +1341,9 @@
       var full = name.toLowerCase(), first = full.split(" ")[0];
       var re = new RegExp("@(" + esc(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+") + "|" + first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")(?![A-Za-z0-9])", "gi");
       html = html.replace(re, '<span class="mention">$&</span>');
+    });
+    groupTokens().forEach(function(g){
+      html = html.replace(new RegExp("@(" + escRe(esc(g.tok)).replace(/ /g, "\\s+") + ")(?![A-Za-z0-9])", "gi"), '<span class="mention">$&</span>');
     });
     return html;
   }
@@ -2589,6 +2600,7 @@
           '<div class="checks" style="margin-bottom:13px;">' + chk("Tax exempt","taxExempt") + chk("W-9 on file","w9OnFile") + chk("COI required","coiRequired") + chk("Lien waiver required","lienWaiverRequired") + chk("Certified payroll","certifiedPayroll") + '</div>' +
           '<div class="field"><label>General notes</label><textarea data-co="notes">' + esc(sel.notes||"") + '</textarea></div>' +
           '<div class="inline-row"><button class="btn primary" id="libSaveBtn">💾 Save company</button>' +
+          '<button class="btn" id="libCloseBtn" title="Close this company file">✕ Close</button>' +
           '<button class="btn" id="libReqBtn">📨 Request info from customer</button>' +
           '<button class="btn" id="libDeleteBtn" style="color:var(--red);">Delete</button></div>' +
         '</div>');
@@ -2607,6 +2619,7 @@
 
     infoReqWire(el, sel);
     libTechsWire(el);
+    var lcb = el.querySelector("#libCloseBtn"); if(lcb) lcb.addEventListener("click", function(){ libSelectedId = ""; irReset(); renderLibrary(); });
     el.querySelector("#libBackBtn").addEventListener("click", showBoard);
     el.querySelector("#libRefreshBtn").addEventListener("click", function(){
       var editing = el.querySelector("[data-co]") && sel;
@@ -2811,6 +2824,7 @@
     else if(activeReport === "customers") host.innerHTML = customersReportHtml();
     wireReportInteractions(host);
     applyReportSort(host);
+    reportExportBar(host);
   }
 
   /* ---- Sortable report columns: click a header to sort, click again to reverse ---- */
@@ -3336,7 +3350,7 @@
 
   /* ---------------- Alerts UI ---------------- */
   function isMineOrUnassigned(a){
-    return !a.assignedTo || a.assignedTo === currentUserName;
+    return !!a.assignedTo && a.assignedTo === currentUserName; // only alerts meant for me
   }
 
   function renderAlerts(){
@@ -3347,15 +3361,14 @@
     dot.textContent = unread > 99 ? "99+" : unread;
     document.getElementById("bellBtn").classList.toggle("ringing", unread > 0);
 
-    if(!alerts.length){
-      list.innerHTML = '<div class="alert-empty">No alerts yet.</div>';
+    var mineList = alerts.filter(isMineOrUnassigned);
+    if(!mineList.length){
+      list.innerHTML = '<div class="alert-empty">No alerts for you.</div>';
       return;
     }
-    list.innerHTML = alerts.slice(0,25).map(function(a){
-      var mine = a.assignedTo && a.assignedTo === currentUserName;
-      return '<div class="alert-item" style="' + (mine ? "border-left:3px solid var(--blue);padding-left:9px;" : "") + '">' +
+    list.innerHTML = mineList.slice(0,25).map(function(a){
+      return '<div class="alert-item">' +
         '<div>' + esc(a.message) + '</div>' +
-        (a.assignedTo ? '<div class="t">For: ' + esc(a.assignedTo) + '</div>' : '') +
         '<div class="t">' + new Date(a.timestamp).toLocaleString() + '</div></div>';
     }).join("");
   }
@@ -3404,6 +3417,8 @@
       if(!m){ close(); return; }
       var q = m[2].toLowerCase();
       var list = teamMembers.filter(function(n){ var l = n.toLowerCase(); return !q || l.indexOf(q) === 0 || l.split(" ")[0].indexOf(q) === 0; });
+      var groups = ["all"].concat(rolesCfg.roles.map(function(r){ return r.label; })).filter(function(g){ return !q || g.toLowerCase().indexOf(q) === 0; });
+      list = list.concat(groups);
       if(!list.length || (list.length === 1 && list[0].toLowerCase() === q)){ close(); return; }
       ta = el; start = before.length - m[2].length - 1; items = list.slice(0, 8); sel = 0; draw();
     });
@@ -4382,8 +4397,9 @@
         syncEstimatingStage(c);
         renderBoard();
         saveCards();
-        pushAlert(c.id, c.projectName, "Estimate complete for " + c.projectName + " (" + c.id + ") — notify " + (c.salesperson || "salesperson"), c.salesperson);
-        toast("Alert sent");
+        var rec = c.salesperson ? [c.salesperson] : roleMembers(rolesCfg.routes.estimateCompleteFallback);
+        var sent = pushAlertTo(c.id, c.projectName, "Estimate complete for " + c.projectName + " (" + c.id + ")" + (c.salesperson ? " — notify " + c.salesperson : ""), rec);
+        toast(sent ? "Alert sent to " + rec.join(", ") : "Marked complete — no salesperson or Sales role to alert");
         renderDetail();
       });
     }
@@ -5157,7 +5173,7 @@
       '<button class="miniremove" data-act="delsec">Remove</button></div>' +
       '<div class="est-sec-sub"><input class="est-scope" data-f="secscope" value="' + esc(sec.scope || "") + '" placeholder="Section scope (e.g. (2) 2D, (7) 1D WAP, (2) 1D cam)">' +
         '<span class="est-sec-nums">Subtotal <b data-secprice="' + sec.id + '">' + money(secT.matPrice + secT.labPrice) + '</b> · Tax <b data-sectax="' + sec.id + '">' + money(secT.tax) + '</b></span></div>' +
-      (col ? '' : sec.subsections.map(function(u){ return subHtml(u, e); }).join("") + '<div style="padding:0 12px 12px;"><button class="add-row-btn" data-act="addsub">+ Add subsection</button></div>') + '</div>';
+      (col ? '' : sec.subsections.map(function(u){ return subHtml(u, e); }).join("") + '<div style="padding:0 12px 12px;"><button class="add-row-btn" data-act="addsub">+ Add subsection</button> <button class="add-row-btn" data-act="addpkg">+ Package</button></div>') + '</div>';
   }
   function renderEstimate(){
     var c = estCard(), v = estVer(); if(!c || !v) return;
@@ -5281,6 +5297,7 @@
       }
       if(act === "doimport"){ estDoImport(host); return; }
       if(act === "tocat"){ estLineToCatalog(r.item); return; }
+      if(act === "addpkg"){ if(r.sec) estPickPackage(r.sec); return; }
       var changed = true;
       if(act === "addsec") e.sections.push({id:uid(), title:"Section " + (e.sections.length + 1), subsections:[{id:uid(), title:"Subsection 1", items:[]}]});
       else if(act === "togsec"){ estCollapsed[r.sec.id] = !estCollapsed[r.sec.id]; changed = false; }
@@ -5445,9 +5462,10 @@
       '<div class="inline-row" style="margin-top:10px;"><button class="btn primary" id="catImpApply"' + (changes.length ? '' : ' disabled') + '>Apply ' + changes.length + ' change' + (changes.length === 1 ? '' : 's') + '</button><button class="btn" id="catImpCancel">Cancel</button></div></div>';
   }
   function renderCatalog(){
+    if(catTab === "packages"){ renderPackagesTab(); return; }
     var el = document.getElementById("catalogView");
     el.innerHTML =
-      '<div class="cal-head"><h2 style="margin:0;font-size:18px;">📦 Catalog</h2><button class="btn small back-btn" id="catBackBtn">← Back to board</button></div>' +
+      '<div class="cal-head"><h2 style="margin:0;font-size:18px;">📦 Catalog</h2><button class="btn small back-btn" id="catBackBtn">← Back to board</button></div>' + catTabsHtml() +
       '<div class="inline-row" style="margin-bottom:12px;">' +
         '<input type="search" id="catSearchBox" class="compact-input" style="flex:1;min-width:200px;max-width:420px;" placeholder="Search description, part #, brand, supplier…" value="' + esc(catSearch) + '">' +
         '<select id="catTypeSel" class="compact-input"><option value="">All types</option><option value="material"' + (catType === "material" ? " selected" : "") + '>Materials</option><option value="labor"' + (catType === "labor" ? " selected" : "") + '>Labor</option></select>' +
@@ -5461,6 +5479,7 @@
       catImportHtml() + (catDraft ? catEditHtml(catDraft) : '') +
       '<div id="catTable">' + catTableHtml() + '</div>';
     el.querySelector("#catBackBtn").addEventListener("click", showBoard);
+    el.querySelectorAll("[data-cat-tab]").forEach(function(b){ b.addEventListener("click", function(){ catTab = b.dataset.catTab; pkgDraft = null; renderCatalog(); }); });
     el.querySelector("#catSearchBox").addEventListener("input", function(e){ catSearch = e.target.value; el.querySelector("#catTable").innerHTML = catTableHtml(); wireCatRows(el); });
     el.querySelector("#catTypeSel").addEventListener("change", function(e){ catType = e.target.value; el.querySelector("#catTable").innerHTML = catTableHtml(); wireCatRows(el); });
     el.querySelector("#catNewBtn").addEventListener("click", function(){ catDraft = blankCatItem(); renderCatalog(); var d = el.querySelector('[data-ci="description"]'); if(d) d.focus(); });
@@ -5516,6 +5535,7 @@
     ["board","calendarView","archiveView","reportsView","libraryView","serviceCalView","projCalView"].forEach(function(id){ var x = document.getElementById(id); if(x) x.style.display = "none"; });
     document.getElementById("catalogView").style.display = "block";
     renderCatalog();
+    loadPackagesRemote().catch(function(){});
     loadCatalogRemote().then(function(){ if(!catDraft && !catImport && document.getElementById("catalogView").style.display !== "none") renderCatalog(); }).catch(function(){});
   }
   function hideExtraViews(){
@@ -5804,7 +5824,7 @@
       });
       saveCompanyRemote(co).then(function(res){
         if(res && res.error){ toast("Couldn't save — " + res.error.message); return; }
-        return irSetStatus(rv.token, "applied", {resolved_at:new Date().toISOString()}).then(function(){ irReset(); libSelectedId = co.id; renderLibrary(); toast("Applied " + n + " change" + (n === 1 ? "" : "s") + " to " + co.name); });
+        return irSetStatus(rv.token, "applied", {resolved_at:new Date().toISOString()}).then(function(){ irReset(); libSelectedId = ""; renderLibrary(); toast("Applied " + n + " change" + (n === 1 ? "" : "s") + " to " + co.name); });
       });
     });
     var fo = el.querySelector("#irFollowBtn");
@@ -6007,8 +6027,9 @@
       var barsHtml = bars.map(function(b){
         var e = b.e, c = conf[e.kind + e.id], warn = c ? " ⚠" : "";
         var title = e.label + " (" + e.start + (e.end !== e.start ? " → " + e.end : "") + ")" + (e.kind === "trip" ? " · " + tripStatusLabel(e.status) : "") + (e.techs.length ? " · " + e.techs.join(", ") : "") + (c ? "\nDOUBLE-BOOKED: " + c.join("; ") : "");
+        var hl = (e.kind === "trip" && !b.left) ? '<i class="pc-h l" data-h="l" title="Drag to change the start day"></i>' : "", hr = (e.kind === "trip" && !b.right) ? '<i class="pc-h r" data-h="r" title="Drag to change the end day"></i>' : "";
         return '<div class="pc-bar st-' + e.status + (b.left ? " cl" : "") + (b.right ? " cr" : "") + (c ? " warn" : "") + '" draggable="true" data-pc="' + e.kind + '" data-id="' + esc(e.id) + '" data-cid="' + esc(e.cid) + '" title="' + esc(title) + '" style="grid-column:' + (b.cs + 1) + ' / ' + (b.ce + 2) + ';grid-row:' + (b.lane + 2) + ';background:' + esc(e.color) + ';">' +
-          (b.left ? "◀ " : "") + (e.status === "done" ? "✓ " : e.status === "in_progress" ? "● " : "") + esc(e.label) + (e.techs.length ? " · 🔧 " + esc(e.techs.join(", ")) : "") + warn + (b.right ? " ▶" : "") + '</div>';
+          (b.left ? "◀ " : "") + (e.status === "done" ? "✓ " : e.status === "in_progress" ? "● " : "") + esc(e.label) + (e.techs.length ? " · 🔧 " + esc(e.techs.join(", ")) : "") + warn + (b.right ? " ▶" : "") + hl + hr + '</div>';
       }).join("");
       return '<div class="pc-week" data-dates="' + ds.join(",") + '" style="grid-template-rows:22px repeat(' + L + ',26px);">' + cells + barsHtml + '</div>';
     }).join("");
@@ -6058,6 +6079,7 @@
     // open
     cal.querySelectorAll(".pc-bar").forEach(function(b){
       b.addEventListener("click", function(){
+        if(Date.now() - (window.__pcResizeAt || 0) < 400) return;
         if(b.dataset.pc === "sj"){ openServiceJob(b.dataset.id); return; }
         openDetail(b.dataset.cid); activeTab = "pm"; renderDetail();
       });
@@ -6083,6 +6105,33 @@
         if(!info || !info.pc) return;
         var drop = dateAt(wk, e.clientX); if(!drop || !info.grab) return;
         pcMove(info, dayDiff(info.grab, drop));
+      });
+    });
+    // drag a bar's left or right edge to change only the start or only the end
+    cal.querySelectorAll(".pc-h").forEach(function(h){
+      h.addEventListener("mousedown", function(e){ e.preventDefault(); e.stopPropagation(); });
+      h.addEventListener("pointerdown", function(e){
+        e.preventDefault(); e.stopPropagation();
+        var bar = h.closest(".pc-bar"), side = h.dataset.h;
+        var c = cards.find(function(x){ return x.id === bar.dataset.cid; }), t = c && (c.pm.trips || []).find(function(x){ return x.id === bar.dataset.id; }); if(!t) return;
+        var oldS = t.start, oldE = t.end || t.start, cur = "";
+        function under(ev){ var el = document.elementFromPoint(ev.clientX, ev.clientY), wk = el && el.closest && el.closest(".pc-week"); return wk ? dateAt(wk, ev.clientX) : ""; }
+        function mv(ev){
+          var d = under(ev); if(!d) return; cur = d;
+          cal.querySelectorAll(".pc-day.hl").forEach(function(x){ x.classList.remove("hl"); });
+          var cell = cal.querySelector('.pc-day[data-date="' + d + '"]'); if(cell) cell.classList.add("hl");
+        }
+        function up(){
+          document.removeEventListener("pointermove", mv); document.removeEventListener("pointerup", up);
+          window.__pcResizeAt = Date.now();
+          if(!cur){ renderProjCal(); return; }
+          var ns = oldS, ne = oldE;
+          if(side === "l") ns = cur > oldE ? oldE : cur; else ne = cur < oldS ? oldS : cur;
+          if(ns === oldS && ne === oldE){ renderProjCal(); return; }
+          t.start = ns; t.end = ne; saveCards(); renderProjCal();
+          toastUndo(c.id + " trip now " + ns + (ne !== ns ? " → " + ne : "") + ".", function(){ t.start = oldS; t.end = oldE; saveCards(); renderProjCal(); toast("Put back"); });
+        }
+        document.addEventListener("pointermove", mv); document.addEventListener("pointerup", up);
       });
     });
   }
@@ -6138,6 +6187,227 @@
     }
     el.querySelector("#libTechAdd").addEventListener("click", add);
     el.querySelector("#libTechName").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); add(); } });
+  }
+
+  /* ---------------- Alert roles + @all ---------------- */
+  var rolesCfg = {roles: JSON.parse(JSON.stringify(CONFIG.DEFAULT_ROLES)), routes: JSON.parse(JSON.stringify(CONFIG.DEFAULT_ALERT_ROUTES))};
+  async function loadRolesRemote(){
+    if(!supabaseClient) return;
+    var r = await supabaseClient.from("app_settings").select("value").eq("key", "roles").maybeSingle();
+    var v = r && r.data && r.data.value;
+    if(v && Array.isArray(v.roles)){ rolesCfg.roles = v.roles; rolesCfg.routes = Object.assign({}, CONFIG.DEFAULT_ALERT_ROUTES, v.routes || {}); }
+  }
+  function saveRolesRemote(){
+    if(!supabaseClient) return Promise.resolve({});
+    return supabaseClient.from("app_settings").upsert({key:"roles", value:rolesCfg, updated_at:new Date().toISOString(), updated_by:getUser() || ""});
+  }
+  function roleMembers(key){
+    var r = rolesCfg.roles.find(function(x){ return x.key === key; });
+    return r ? (r.people || []).filter(function(n){ return teamMembers.indexOf(n) !== -1; }) : [];
+  }
+  function escRe(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+  function groupTokens(){
+    var t = [{tok:"all", names:teamMembers.slice()}];
+    rolesCfg.roles.forEach(function(r){
+      var names = (r.people || []).filter(function(n){ return teamMembers.indexOf(n) !== -1; });
+      [String(r.label || "").toLowerCase(), r.key].forEach(function(x){ if(x && !t.some(function(y){ return y.tok === x; })) t.push({tok:x, names:names}); });
+    });
+    return t;
+  }
+  function groupMentions(text){
+    var out = [], tx = String(text || "").toLowerCase();
+    groupTokens().forEach(function(g){
+      if(new RegExp("@(" + escRe(g.tok).replace(/ /g, "\\s+") + ")(?![a-z0-9])").test(tx)) g.names.forEach(function(n){ if(out.indexOf(n) === -1) out.push(n); });
+    });
+    return out;
+  }
+  // Sends one alert to each named person (no duplicates); nothing goes to "everyone" any more.
+  function pushAlertTo(cardId, projectName, message, names){
+    var seen = {}, n = 0;
+    (names || []).forEach(function(name){
+      if(!name || seen[name]) return; seen[name] = 1; n++;
+      alerts.unshift({id:uid(), cardId:cardId, projectName:projectName, message:message, timestamp:new Date().toISOString(), read:false, assignedTo:name});
+    });
+    if(n){ saveAlerts(); renderAlerts(); }
+    return n;
+  }
+  function rolesSettingsHtml(){
+    return '<p class="section-title" style="margin-top:20px;">Roles &amp; alerts</p>' +
+      '<div class="note-empty">Tick who is in each role. Alerts go only to the person they are meant for. Type @all in a note to alert the whole company, or @Billing, @Sales, etc. to alert a role.</div>' +
+      rolesCfg.roles.map(function(r, i){
+        return '<div class="subcard" style="margin:8px 0;padding:10px;"><div class="inline-row"><input type="text" class="compact-input" data-role-label="' + i + '" value="' + esc(r.label) + '" style="width:200px;font-weight:700;"><button class="miniremove" data-role-del="' + i + '">Remove role</button></div>' +
+          '<div class="checks" style="margin-top:6px;">' + teamMembers.map(function(n){ return '<label class="checkline"><input type="checkbox" data-role-person="' + i + '" value="' + esc(n) + '"' + ((r.people || []).indexOf(n) !== -1 ? " checked" : "") + '> ' + esc(n) + '</label>'; }).join("") + '</div></div>';
+      }).join("") +
+      '<div class="inline-row" style="margin-top:6px;"><input type="text" id="roleNew" class="compact-input" placeholder="New role (e.g. Safety)" style="width:200px;"><button class="btn small" id="roleAdd">+ Add role</button></div>' +
+      '<div class="inline-row" style="margin-top:12px;"><span style="font-size:13px;">When an estimate is marked complete and the card has no salesperson, alert:</span><select id="roleRouteEst" class="compact-input"><option value="">nobody</option>' +
+        rolesCfg.roles.map(function(r){ return '<option value="' + esc(r.key) + '"' + (rolesCfg.routes.estimateCompleteFallback === r.key ? " selected" : "") + '>' + esc(r.label) + '</option>'; }).join("") + '</select></div>';
+  }
+  function rolesSettingsWire(){
+    var host = document.getElementById("settingsExtra");
+    function save(redraw){
+      saveRolesRemote().then(function(r){ if(r && r.error) toast("Couldn't save roles: " + r.error.message); });
+      if(redraw){ var box = document.getElementById("rolesBox"); box.innerHTML = rolesSettingsHtml(); rolesSettingsWire(); }
+    }
+    host.querySelectorAll("[data-role-person]").forEach(function(cb){ cb.addEventListener("change", function(){
+      var r = rolesCfg.roles[Number(cb.dataset.rolePerson)]; r.people = r.people || [];
+      var i = r.people.indexOf(cb.value); if(cb.checked && i === -1) r.people.push(cb.value); if(!cb.checked && i !== -1) r.people.splice(i, 1);
+      save(false);
+    }); });
+    host.querySelectorAll("[data-role-label]").forEach(function(inp){ inp.addEventListener("change", function(){ rolesCfg.roles[Number(inp.dataset.roleLabel)].label = inp.value.trim() || "Role"; save(true); }); });
+    host.querySelectorAll("[data-role-del]").forEach(function(b){ b.addEventListener("click", function(){
+      var r = rolesCfg.roles[Number(b.dataset.roleDel)]; if(!confirm("Remove the " + r.label + " role?")) return;
+      rolesCfg.roles.splice(Number(b.dataset.roleDel), 1); if(rolesCfg.routes.estimateCompleteFallback === r.key) rolesCfg.routes.estimateCompleteFallback = ""; save(true);
+    }); });
+    var add = host.querySelector("#roleAdd");
+    if(add) add.addEventListener("click", function(){
+      var nm = host.querySelector("#roleNew").value.trim(); if(!nm) return;
+      var key = nm.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || uid().slice(0, 4);
+      if(rolesCfg.roles.some(function(r){ return r.key === key; })){ toast("That role already exists"); return; }
+      rolesCfg.roles.push({key:key, label:nm, people:[]}); save(true);
+    });
+    var rt = host.querySelector("#roleRouteEst"); if(rt) rt.addEventListener("change", function(){ rolesCfg.routes.estimateCompleteFallback = rt.value; save(false); });
+  }
+
+  /* ---------------- Catalog packages ---------------- */
+  var packages = [], catTab = "items", pkgDraft = null;
+  async function loadPackagesRemote(){
+    if(!supabaseClient) return;
+    var r = await supabaseClient.from("catalog_packages").select("data").order("name");
+    if(r.error) throw r.error;
+    packages = (r.data || []).map(function(x){ return x.data; });
+  }
+  function savePackageRemote(p){
+    if(!supabaseClient) return Promise.resolve({});
+    return supabaseClient.from("catalog_packages").upsert({id:p.id, name:p.name || "", data:p, updated_at:new Date().toISOString()});
+  }
+  function pkgItemDesc(pi){
+    var c = catalog.find(function(x){ return x.id === pi.catId; });
+    return c ? {desc:c.description, unit:c.unit, type:c.type, cost:c.unitCost, ok:true} : {desc:"(removed from the Catalog)", unit:"", type:"", cost:0, ok:false};
+  }
+  function catTabsHtml(){
+    return '<div class="subtabs" style="margin-bottom:12px;"><button class="subtab ' + (catTab === "items" ? "active" : "") + '" data-cat-tab="items">Items</button><button class="subtab ' + (catTab === "packages" ? "active" : "") + '" data-cat-tab="packages">Packages</button></div>';
+  }
+  function renderPackagesTab(){
+    var el = document.getElementById("catalogView");
+    var list = packages.slice().sort(function(a, b){ return (a.name || "").localeCompare(b.name || ""); });
+    el.innerHTML =
+      '<div class="cal-head"><h2 style="margin:0;font-size:18px;">📦 Catalog</h2><button class="btn small back-btn" id="catBackBtn">← Back to board</button></div>' + catTabsHtml() +
+      '<div class="note-empty" style="margin-bottom:10px;">A package is a saved group of Catalog items (Pathway, IDF, MDF, Backbone, Horizontal…). In an estimate, click “+ Package” on a section, pick one and a multiplier; every quantity here is multiplied by it. Leave quantities at 0 to just get the items on the page.</div>' +
+      '<div class="inline-row" style="margin-bottom:10px;"><button class="btn small primary" id="pkgNewBtn">+ New package</button></div>' +
+      (pkgDraft ? pkgEditHtml(pkgDraft) : '') +
+      (list.length ? '<table class="cat-tbl"><thead><tr><th>Package</th><th>Items</th><th>Notes</th><th></th></tr></thead><tbody>' + list.map(function(p){
+        return '<tr><td><b>' + esc(p.name) + '</b></td><td>' + (p.items || []).length + '</td><td>' + esc(p.notes || "") + '</td><td><button class="btn small" data-pkg-edit="' + esc(p.id) + '">Edit</button> <button class="btn small" data-pkg-dup="' + esc(p.id) + '">Duplicate</button></td></tr>';
+      }).join("") + '</tbody></table>' : '<div class="note-empty">No packages yet.</div>');
+    wirePackagesTab(el);
+  }
+  function pkgEditHtml(p){
+    return '<div class="subcard" style="margin-bottom:14px;"><p class="section-title">' + (packages.indexOf(p) === -1 ? "New package" : "Edit package") + '</p>' +
+      '<div class="row2"><div class="field"><label>Package name *</label><input type="text" id="pkgName" value="' + esc(p.name) + '" placeholder="e.g. IDF closet"></div><div class="field"><label>Notes</label><input type="text" id="pkgNotes" value="' + esc(p.notes || "") + '"></div></div>' +
+      '<div class="field"><label>Add a Catalog item</label><input type="search" id="pkgSearch" placeholder="Search the Catalog…"><div id="pkgResults"></div></div>' +
+      '<div id="pkgItems">' + pkgItemsHtml(p) + '</div>' +
+      '<div class="inline-row" style="margin-top:10px;"><button class="btn primary" id="pkgSaveBtn">💾 Save package</button><button class="btn" id="pkgCancelBtn">Cancel</button>' + (packages.indexOf(p) !== -1 ? '<button class="btn" id="pkgDelBtn" style="color:var(--red);">Delete</button>' : '') + '</div></div>';
+  }
+  function pkgItemsHtml(p){
+    if(!(p.items || []).length) return '<div class="note-empty">No items yet — search above to add some.</div>';
+    return '<table class="cat-tbl"><thead><tr><th>Item</th><th>Type</th><th>Unit</th><th>Default qty</th><th></th></tr></thead><tbody>' + p.items.map(function(pi, i){
+      var d = pkgItemDesc(pi);
+      return '<tr><td' + (d.ok ? '' : ' style="color:var(--red);"') + '>' + esc(d.desc) + '</td><td>' + esc(d.type) + '</td><td>' + esc(d.unit) + '</td><td><input type="number" step="any" min="0" class="compact-input" style="width:80px;" data-pkg-qty="' + i + '" value="' + (Number(pi.qty) || 0) + '"></td>' +
+        '<td style="white-space:nowrap;"><button class="est-mv" data-pkg-up="' + i + '">↑</button><button class="est-mv" data-pkg-dn="' + i + '">↓</button><button class="miniremove" data-pkg-rm="' + i + '">✕</button></td></tr>';
+    }).join("") + '</tbody></table>';
+  }
+  function wirePackagesTab(el){
+    el.querySelector("#catBackBtn").addEventListener("click", showBoard);
+    el.querySelectorAll("[data-cat-tab]").forEach(function(b){ b.addEventListener("click", function(){ catTab = b.dataset.catTab; pkgDraft = null; renderCatalog(); }); });
+    el.querySelector("#pkgNewBtn").addEventListener("click", function(){ pkgDraft = {id:"pkg-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name:"", notes:"", items:[]}; renderPackagesTab(); el.querySelector("#pkgName").focus(); });
+    el.querySelectorAll("[data-pkg-edit]").forEach(function(b){ b.addEventListener("click", function(){ pkgDraft = packages.find(function(p){ return p.id === b.dataset.pkgEdit; }); renderPackagesTab(); window.scrollTo(0, 0); }); });
+    el.querySelectorAll("[data-pkg-dup]").forEach(function(b){ b.addEventListener("click", function(){
+      var p = packages.find(function(x){ return x.id === b.dataset.pkgDup; }); if(!p) return;
+      var c = JSON.parse(JSON.stringify(p)); c.id = "pkg-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); c.name = p.name + " (copy)";
+      packages.push(c); savePackageRemote(c).then(function(){ pkgDraft = c; renderPackagesTab(); });
+    }); });
+    if(!pkgDraft) return;
+    function redrawItems(){ el.querySelector("#pkgItems").innerHTML = pkgItemsHtml(pkgDraft); wireItems(); }
+    function wireItems(){
+      el.querySelectorAll("[data-pkg-qty]").forEach(function(i){ i.addEventListener("input", function(){ pkgDraft.items[Number(i.dataset.pkgQty)].qty = Number(i.value) || 0; }); });
+      el.querySelectorAll("[data-pkg-rm]").forEach(function(b){ b.addEventListener("click", function(){ pkgDraft.items.splice(Number(b.dataset.pkgRm), 1); redrawItems(); }); });
+      el.querySelectorAll("[data-pkg-up]").forEach(function(b){ b.addEventListener("click", function(){ var i = Number(b.dataset.pkgUp); if(i > 0){ var x = pkgDraft.items.splice(i, 1)[0]; pkgDraft.items.splice(i - 1, 0, x); redrawItems(); } }); });
+      el.querySelectorAll("[data-pkg-dn]").forEach(function(b){ b.addEventListener("click", function(){ var i = Number(b.dataset.pkgDn); if(i < pkgDraft.items.length - 1){ var x = pkgDraft.items.splice(i, 1)[0]; pkgDraft.items.splice(i + 1, 0, x); redrawItems(); } }); });
+    }
+    wireItems();
+    el.querySelector("#pkgName").addEventListener("input", function(e){ pkgDraft.name = e.target.value; });
+    el.querySelector("#pkgNotes").addEventListener("input", function(e){ pkgDraft.notes = e.target.value; });
+    el.querySelector("#pkgSearch").addEventListener("input", function(e){
+      var toks = e.target.value.toLowerCase().split(/\s+/).filter(Boolean), box = el.querySelector("#pkgResults");
+      if(!toks.length){ box.innerHTML = ""; return; }
+      var hits = catalog.filter(function(c){ var h = [c.description, c.partNumber, c.itemNumber, c.brand, c.category].join(" ").toLowerCase(); return toks.every(function(t){ return h.indexOf(t) !== -1; }); }).slice(0, 8);
+      box.innerHTML = hits.length ? hits.map(function(c){ return '<button type="button" class="btn small" style="display:block;width:100%;text-align:left;margin-top:3px;" data-pkg-add="' + esc(c.id) + '">+ ' + esc(c.description) + ' <small style="color:var(--ink-soft);">' + esc([c.partNumber, c.brand, c.type === "labor" ? "labor" : ""].filter(Boolean).join(" · ")) + '</small></button>'; }).join("") : '<div class="note-empty">No Catalog items match.</div>';
+      box.querySelectorAll("[data-pkg-add]").forEach(function(b){ b.addEventListener("click", function(){ pkgDraft.items.push({catId:b.dataset.pkgAdd, qty:0}); el.querySelector("#pkgSearch").value = ""; box.innerHTML = ""; redrawItems(); }); });
+    });
+    el.querySelector("#pkgCancelBtn").addEventListener("click", function(){ pkgDraft = null; loadPackagesRemote().catch(function(){}).then(renderPackagesTab); });
+    el.querySelector("#pkgSaveBtn").addEventListener("click", function(){
+      if(!(pkgDraft.name || "").trim()){ toast("Give the package a name"); return; }
+      var p = pkgDraft; if(packages.indexOf(p) === -1) packages.push(p);
+      savePackageRemote(p).then(function(r){ if(r && r.error){ toast("Couldn't save — " + r.error.message); return; } toast("Saved " + p.name); pkgDraft = null; renderPackagesTab(); });
+    });
+    var dl = el.querySelector("#pkgDelBtn");
+    if(dl) dl.addEventListener("click", function(){
+      if(!confirm("Delete this package? Estimates that already used it are not changed.")) return;
+      var id = pkgDraft.id; packages = packages.filter(function(p){ return p.id !== id; }); pkgDraft = null;
+      if(supabaseClient) supabaseClient.from("catalog_packages").delete().eq("id", id).then(function(){});
+      renderPackagesTab();
+    });
+  }
+  // Estimate: "+ Package" on a section opens this small picker.
+  function estPickPackage(sec){
+    if(!packages.length){ toast("No packages yet — create them in 📦 Catalog → Packages"); return; }
+    var ov = document.createElement("div");
+    ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:4000;display:flex;align-items:center;justify-content:center;";
+    ov.innerHTML = '<div class="subcard" style="background:var(--paper-raised);min-width:320px;max-width:460px;padding:16px;">' +
+      '<p class="section-title">Add a package to “' + esc(sec.title || "this section") + '”</p>' +
+      '<div class="field"><label>Package</label><select id="pkgPick">' + packages.slice().sort(function(a, b){ return a.name.localeCompare(b.name); }).map(function(p){ return '<option value="' + esc(p.id) + '">' + esc(p.name) + ' (' + (p.items || []).length + ' items)</option>'; }).join("") + '</select></div>' +
+      '<div class="field"><label>Multiplier (e.g. number of drops or closets)</label><input type="number" id="pkgMult" min="0" step="any" value="1"></div>' +
+      '<div class="inline-row"><button class="btn primary" id="pkgGo">Add to estimate</button><button class="btn" id="pkgNo">Cancel</button></div></div>';
+    document.body.appendChild(ov);
+    function done(){ ov.remove(); }
+    ov.querySelector("#pkgNo").addEventListener("click", done);
+    ov.addEventListener("mousedown", function(e){ if(e.target === ov) done(); });
+    ov.querySelector("#pkgGo").addEventListener("click", function(){
+      var p = packages.find(function(x){ return x.id === ov.querySelector("#pkgPick").value; }), mult = Number(ov.querySelector("#pkgMult").value);
+      if(!p) return; if(isNaN(mult) || mult < 0) mult = 1;
+      var sub = {id:uid(), title:p.name, items:[]}, missing = 0;
+      (p.items || []).forEach(function(pi){
+        var c = catalog.find(function(x){ return x.id === pi.catId; }); if(!c){ missing++; return; }
+        var lab = c.type === "labor";
+        sub.items.push({id:uid(), type:lab ? "labor" : "material", description:c.description, qty:(Number(pi.qty) || 0) * mult, unit:lab ? "hr" : (c.unit || "ea"), unitCost:Number(c.unitCost) || 0, markup:null, taxable:lab ? true : c.taxable !== false});
+      });
+      sec.subsections.push(sub); estSaveSoon(); renderEstimate(); done();
+      toast("Added " + p.name + " (" + sub.items.length + " lines)" + (missing ? " — " + missing + " item(s) no longer in the Catalog were skipped" : ""));
+    });
+  }
+
+  /* ---------------- Reports: export to Excel (CSV) ---------------- */
+  function reportExportBar(host){
+    var tables = host.querySelectorAll("table.report-table"); if(!tables.length) return;
+    var bar = document.createElement("div"); bar.style.cssText = "text-align:right;margin:4px 0 8px;";
+    bar.innerHTML = '<button class="btn small" id="repCsvBtn" title="Downloads what you see, with the current filters and sort">⬇ Export to Excel (CSV)</button>';
+    host.insertBefore(bar, host.firstChild);
+    bar.querySelector("#repCsvBtn").addEventListener("click", function(){
+      var lines = [];
+      host.querySelectorAll("table.report-table").forEach(function(t, ti){
+        if(ti) lines.push("");
+        var hs = [].map.call(t.querySelectorAll("thead th"), function(th){ return csvCell(th.textContent.replace(/[▲▼↑↓▴▾]/g, "").trim()); });
+        if(hs.length) lines.push(hs.join(","));
+        [].forEach.call(t.querySelectorAll("tbody tr"), function(tr){
+          lines.push([].map.call(tr.children, function(td){
+            var tx = td.textContent.replace(/\s+/g, " ").trim();
+            if(td.classList.contains("num") && /^-?\$?[\d,]+(\.\d+)?%?$/.test(tx)) tx = tx.replace(/[$,%]/g, "");
+            return csvCell(tx);
+          }).join(","));
+        });
+      });
+      var blob = new Blob(["﻿" + lines.join("\r\n")], {type:"text/csv"}), a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = "ci-" + activeReport.replace(/_/g, "-") + "-report-" + formatDateISO(new Date()) + ".csv"; a.click(); URL.revokeObjectURL(a.href);
+    });
   }
 
   /* ---------------- Suggestion box ---------------- */
@@ -6300,6 +6570,7 @@
   }
   async function renderSettingsExtra(){
     try { techs = await loadTechsRemote(); } catch(e){}
+    try { await loadRolesRemote(); } catch(e){}
     await loadDocSettings();
     var b = await usageBytes();
     document.getElementById("settingsExtra").innerHTML =
@@ -6309,6 +6580,8 @@
       '<div style="margin-top:10px;font-size:12px;color:var(--ink-soft);">Storage used: <strong>' + fmtSize(b) + '</strong> of ' + DOC_INCLUDED_GB + ' GB included (' + (b / (DOC_INCLUDED_GB * 1073741824) * 100).toFixed(1) + '%)' +
       '<div class="meter" style="height:10px;"><div style="width:' + Math.min(100, b / (DOC_INCLUDED_GB * 1073741824) * 100).toFixed(1) + '%"></div></div></div>' +
       '<div class="note-empty" style="margin-top:6px;">Files bigger than the project-wide Supabase upload limit will still be refused by Supabase — raise it under Storage → Settings in the Supabase dashboard.</div>';
+    document.getElementById("settingsExtra").insertAdjacentHTML("beforeend", '<div id="rolesBox">' + rolesSettingsHtml() + '</div>');
+    rolesSettingsWire();
     document.getElementById("st_docMaxSave").addEventListener("click", async function(){
       var mb = Number(document.getElementById("st_docMax").value);
       if(!(mb > 0)){ toast("Enter a size in MB"); return; }
@@ -6614,6 +6887,8 @@
 
     try { await loadLibraryRemote(); } catch(e){ console.error("Library load failed", e); }
     try { await loadCatalogRemote(); } catch(e){ console.error("Catalog load failed", e); }
+    try { await loadPackagesRemote(); } catch(e){ console.error("Packages load failed", e); }
+    try { await loadRolesRemote(); } catch(e){ console.error("Roles load failed", e); }
     try { await loadServiceJobsRemote(); } catch(e){ console.error("Service jobs load failed", e); }
     try { await loadTodosRemote(); } catch(e){ console.error("To-do load failed", e); }
     cards = loadedCards;
