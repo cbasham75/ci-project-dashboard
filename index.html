@@ -564,6 +564,7 @@
   <div class="login-card">
     <div class="login-mark">🗂️ CI Project Bashboard</div>
     <p class="login-sub">Sign in to continue</p>
+    <div id="appVerLogin" style="font-size:10px;color:var(--ink-soft);opacity:.7;margin:-6px 0 8px;"></div>
     <div class="field">
       <label>Username</label>
       <input type="text" id="loginUsername" placeholder="e.g. cbasham" autocomplete="username">
@@ -602,6 +603,7 @@
           Signed in as <strong id="signedInName" style="color:var(--ink);"></strong>
           <button class="btn ghost small" id="changePasswordBtn">Change password</button>
           <button class="btn ghost small" id="logoutBtn">Log out</button>
+          <span id="appVer" style="font-size:10px;color:var(--ink-soft);opacity:.7;margin-left:6px;" title="App version"></span>
         </div>
         <div class="bell-wrap">
           <button class="bell" id="bellBtn" title="Alerts"><span class="ico">🔔</span><span class="dot" id="alertDot" style="display:none;">0</span></button>
@@ -843,6 +845,8 @@
     // Alert roles (editable in Settings; these are the starting values)
     DEFAULT_ROLES: [{key:"billing",label:"Billing",people:["Hollie Treese"]},{key:"sales",label:"Sales",people:["Tyler Murray"]},{key:"estimates",label:"Estimates",people:["Chris Basham"]},{key:"ops",label:"Ops/Projects",people:["Hali McNair","Kerry Peace"]}],
     DEFAULT_ALERT_ROUTES: {estimateCompleteFallback:"sales"},
+    // Shown small in the header so you can tell which version loaded. Bump with every delivery: whole number = big change, decimal = small change.
+    APP_VERSION: "3.2",
     CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
     CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
     CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
@@ -6645,6 +6649,7 @@
   document.getElementById("libraryBtn").addEventListener("click", showLibrary);
   document.getElementById("serviceCalBtn").addEventListener("click", showServiceCalendar);
   document.getElementById("catalogBtn").addEventListener("click", showCatalog);
+  ["appVer","appVerLogin"].forEach(function(id){ var v = document.getElementById(id); if(v) v.textContent = "v" + CONFIG.APP_VERSION; });
   document.getElementById("projCalBtn").addEventListener("click", showProjCal);
   document.getElementById("newServiceJobBtn").addEventListener("click", function(){ openServiceJob(""); });
 
