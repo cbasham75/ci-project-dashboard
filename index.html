@@ -846,7 +846,7 @@
     DEFAULT_ROLES: [{key:"billing",label:"Billing",people:["Hollie Treese"]},{key:"sales",label:"Sales",people:["Tyler Murray"]},{key:"estimates",label:"Estimates",people:["Chris Basham"]},{key:"ops",label:"Ops/Projects",people:["Hali McNair","Kerry Peace"]}],
     DEFAULT_ALERT_ROUTES: {estimateCompleteFallback:"sales"},
     // Shown small in the header so you can tell which version loaded. Bump with every delivery: whole number = big change, decimal = small change.
-    APP_VERSION: "3.2",
+    APP_VERSION: "4.0",
     CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
     CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
     CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
@@ -952,9 +952,14 @@
     return list;
   }
   async function loadCardsRemote(){
-    var res = await supabaseClient.from("cards").select("data").order("id");
+    await saveChain; // let any save in flight finish first
+    var res = await supabaseClient.from("cards").select("id,data,updated_at").order("id");
     if(res.error) throw res.error;
-    return res.data.map(function(row){ return row.data; });
+    cardSnap = {}; cardVer = {}; serverIds = [];
+    var list = res.data.map(function(row){ migrateCard(row.data); cardVer[row.id] = row.updated_at; serverIds.push(row.id); return row.data; });
+    list.forEach(function(c){ cardSnap[c.id] = snapOf(c); });
+    cardSyncOn = true; offlineWarned = false;
+    return list;
   }
   function loadAlertsFromCache(){
     try { return JSON.parse(localStorage.getItem(ALERT_KEY)) || []; }
@@ -1116,20 +1121,121 @@
     }
     return c;
   }
-  function saveCards(){
+  /* ---------------- Safe card saving (v4.0) ----------------
+     Each save sends ONLY the cards you changed, and only if nobody else saved them since you loaded them.
+     If someone did, their changes are merged with yours instead of being overwritten. */
+  var cardSnap = {}, cardVer = {}, serverIds = [], cardSyncOn = false, saveChain = Promise.resolve(), staleWarned = {}, offlineWarned = false;
+  function snapOf(c){ return JSON.stringify(c); }
+  function isObj(x){ return x && typeof x === "object" && !Array.isArray(x); }
+  function same(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
+  // Three-way merge: base = what I loaded, mine = what I have now, theirs = what the database has now.
+  function mergeVal(base, mine, theirs, path, conflicts){
+    if(same(mine, base)) return theirs;
+    if(same(theirs, base) || same(mine, theirs)) return mine;
+    if(isObj(base || {}) && isObj(mine) && isObj(theirs)){
+      var out = {}, keys = {}, b = isObj(base) ? base : {};
+      [b, mine, theirs].forEach(function(o){ Object.keys(o).forEach(function(k){ keys[k] = 1; }); });
+      Object.keys(keys).forEach(function(k){
+        var v = mergeVal(b[k], mine[k], theirs[k], path + "." + k, conflicts);
+        if(v !== undefined) out[k] = v;
+      });
+      return out;
+    }
+    if(Array.isArray(mine) && Array.isArray(theirs)){
+      var bs = (Array.isArray(base) ? base : []).map(function(x){ return JSON.stringify(x); }), ms = mine.map(function(x){ return JSON.stringify(x); }), ts = theirs.map(function(x){ return JSON.stringify(x); });
+      var res = [], seen = {};
+      theirs.forEach(function(x, i){ var k = ts[i]; if(bs.indexOf(k) !== -1 && ms.indexOf(k) === -1) return; /* I removed it */ res.push(x); seen[k] = 1; });
+      mine.forEach(function(x, i){ var k = ms[i]; if(!seen[k] && bs.indexOf(k) === -1){ res.push(x); seen[k] = 1; } }); /* I added it */
+      return res;
+    }
+    conflicts.push(path.replace(/^\./, ""));
+    return mine; // same field changed two different ways: keep my latest edit and say so
+  }
+  function replaceInPlace(c, data){
+    Object.keys(c).forEach(function(k){ delete c[k]; });
+    Object.assign(c, data);
+  }
+  function saveCards(opts){
     try { localStorage.setItem(STORE_KEY, JSON.stringify(cards)); } catch(e){}
-    if(!supabaseClient || !cards.length) return;
-    var rows = cards.map(function(c){ return {id:c.id, status:c.status, data:c, updated_at:new Date().toISOString()}; });
-    supabaseClient.from("cards").upsert(rows).then(function(res){
-      if(res.error){ console.error("Card save failed", res.error); toast("Save failed — check your connection"); }
-    });
+    if(!supabaseClient) return;
+    saveChain = saveChain.then(function(){ return flushCards(opts); }).catch(function(e){ console.error("Card save failed", e); toast("Save failed — check your connection"); });
+  }
+  async function flushCards(opts){
+    if(!cardSyncOn){
+      if(!offlineWarned){ offlineWarned = true; toast("Not connected to the database — changes are saved on this device only. Refresh the page."); }
+      return;
+    }
+    if(opts && opts.force){
+      var rows = cards.map(function(c){ return {id:c.id, status:c.status, data:c, updated_at:new Date().toISOString()}; });
+      var r = await supabaseClient.from("cards").upsert(rows).select("id,updated_at");
+      if(r.error){ toast("Save failed — " + r.error.message); return; }
+      r.data.forEach(function(x){ cardVer[x.id] = x.updated_at; });
+      cards.forEach(function(c){ cardSnap[c.id] = snapOf(c); });
+      return;
+    }
+    var changed = cards.filter(function(c){ return cardSnap[c.id] !== snapOf(c); });
+    for(var i = 0; i < changed.length; i++) await pushCard(changed[i]);
+  }
+  async function pushCard(c){
+    var id = c.id;
+    if(!cardVer[id]){ // brand-new card
+      var ins = await supabaseClient.from("cards").insert({id:id, status:c.status, data:c, updated_at:new Date().toISOString()}).select("updated_at");
+      if(!ins.error){ cardSnap[id] = snapOf(c); cardVer[id] = ins.data[0].updated_at; serverIds.push(id); return; }
+      if(ins.error.code === "23505"){
+        var ids = await supabaseClient.from("cards").select("id");
+        serverIds = (ids.data || []).map(function(x){ return x.id; });
+        var oldId = c.id; c.id = nextProjectNumber();
+        if(activeDetailId === oldId) activeDetailId = c.id;
+        toast("Project number " + oldId + " was already taken — this one is now " + c.id);
+        renderBoard();
+        return pushCard(c);
+      }
+      toast("Save failed — " + ins.error.message); return;
+    }
+    for(var attempt = 0; attempt < 4; attempt++){
+      var json = snapOf(c);
+      var up = await supabaseClient.from("cards").update({status:c.status, data:c, updated_at:new Date().toISOString()}).eq("id", id).eq("updated_at", cardVer[id]).select("updated_at");
+      if(up.error){ toast("Save failed — " + up.error.message); return; }
+      if(up.data && up.data.length){ cardSnap[id] = json; cardVer[id] = up.data[0].updated_at; return; }
+      // Someone else saved this card since I loaded it — merge instead of overwriting.
+      var cur = await supabaseClient.from("cards").select("data,updated_at").eq("id", id).maybeSingle();
+      if(cur.error){ toast("Save failed — " + cur.error.message); return; }
+      if(!cur.data){
+        delete cardVer[id]; toast(id + " was deleted by someone else — restoring it with your changes");
+        return pushCard(c);
+      }
+      var base = cardSnap[id] ? JSON.parse(cardSnap[id]) : {}, conflicts = [];
+      var merged = mergeVal(base, JSON.parse(json), cur.data.data, "", conflicts);
+      replaceInPlace(c, merged); migrateCard(c);
+      cardVer[id] = cur.data.updated_at; cardSnap[id] = JSON.stringify(cur.data.data);
+      toast("Someone else changed " + id + " while you were working — their changes were merged with yours" + (conflicts.length ? " (you both edited: " + conflicts.slice(0, 3).join(", ") + "; your version was kept)" : ""));
+      renderBoard();
+      if(activeDetailId === id) renderDetail();
+    }
+    toast("Couldn't save " + id + " — it keeps changing. Refresh and try again.");
   }
   function deleteCardRemote(id){
     if(!supabaseClient) return;
+    delete cardSnap[id]; delete cardVer[id];
     supabaseClient.from("cards").delete().eq("id", id).then(function(res){
       if(res.error) console.error("Card delete failed", res.error);
     });
   }
+  async function refreshServerIds(){
+    if(!supabaseClient || !cardSyncOn) return;
+    try { var r = await supabaseClient.from("cards").select("id"); if(!r.error) serverIds = (r.data || []).map(function(x){ return x.id; }); } catch(e){}
+  }
+  // Tells you if the card you have open was changed by someone else after you opened it.
+  async function checkOpenCardStale(){
+    if(!activeDetailId || !supabaseClient || !cardSyncOn) return;
+    var id = activeDetailId;
+    var r = await supabaseClient.from("cards").select("updated_at").eq("id", id).maybeSingle();
+    if(r && r.data && cardVer[id] && r.data.updated_at !== cardVer[id] && staleWarned[id] !== r.data.updated_at){
+      staleWarned[id] = r.data.updated_at;
+      toast("Someone else just changed " + id + ". Close and reopen it to see their changes (your next save will merge them).");
+    }
+  }
+
   function saveAlerts(){
     try { localStorage.setItem(ALERT_KEY, JSON.stringify(alerts)); } catch(e){}
     if(!supabaseClient || !alerts.length) return;
@@ -1154,9 +1260,9 @@
   function nextProjectNumber(){
     var yy = new Date().getFullYear().toString().slice(-2);
     var max = YEAR_NUMBER_FLOORS[yy] || 0;
-    cards.forEach(function(c){
-      if(c.id && c.id.indexOf(yy + "-") === 0){
-        var n = parseInt(c.id.split("-")[1], 10);
+    cards.map(function(c){ return c.id; }).concat(serverIds).forEach(function(id){
+      if(id && id.indexOf(yy + "-") === 0){
+        var n = parseInt(id.split("-")[1], 10);
         if(!isNaN(n) && n > max) max = n;
       }
     });
@@ -3506,7 +3612,8 @@
     document.getElementById("f_projectName").focus();
   });
 
-  document.getElementById("saveNewCardBtn").addEventListener("click", function(){
+  document.getElementById("saveNewCardBtn").addEventListener("click", async function(){
+    await refreshServerIds();
     var projectName = document.getElementById("f_projectName").value.trim();
     if(!projectName){
       toast("Project name is required");
@@ -6677,7 +6784,7 @@
           if(confirm("Import will replace all current cards on this device. Continue?")){
             cards = data.cards;
             alerts = data.alerts || [];
-            saveCards();
+            saveCards({force:true});
             saveAlerts();
             renderBoard();
             renderAlerts();
@@ -6751,6 +6858,7 @@
     closeOverlay("todoOverlay");
     currentUserName = "";
     cards = [];
+    cardSnap = {}; cardVer = {}; serverIds = []; cardSyncOn = false;
     alerts = [];
     document.getElementById("userField").style.display = "none";
     showLogin();
@@ -6913,6 +7021,7 @@
   function startAutoRefresh(){
     if(autoRefreshTimer) return;
     autoRefreshTimer = setInterval(function(){ backgroundRefresh(false); }, AUTO_REFRESH_MS);
+    document.addEventListener("visibilitychange", function(){ if(!document.hidden && currentSession) backgroundRefresh(false); });
   }
   async function backgroundRefresh(manual){
     if(!currentSession || !supabaseClient) return;
@@ -6935,6 +7044,7 @@
         if(document.getElementById("archiveView").style.display !== "none") renderArchive();
         if(document.getElementById("reportsView").style.display !== "none") renderReportContent();
       }
+      else { try { await checkOpenCardStale(); } catch(e){} }
       if(manual) toast(activeDetailId ? "Alerts refreshed — close this card to refresh project data" : "Refreshed");
     } catch(err){
       console.error("Background refresh failed", err);
