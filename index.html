@@ -846,7 +846,7 @@
     DEFAULT_ROLES: [{key:"billing",label:"Billing",people:["Hollie Treese"]},{key:"sales",label:"Sales",people:["Tyler Murray"]},{key:"estimates",label:"Estimates",people:["Chris Basham"]},{key:"ops",label:"Ops/Projects",people:["Hali McNair","Kerry Peace"]}],
     DEFAULT_ALERT_ROUTES: {estimateCompleteFallback:"sales"},
     // Shown small in the header so you can tell which version loaded. Bump with every delivery: whole number = big change, decimal = small change.
-    APP_VERSION: "4.0",
+    APP_VERSION: "4.1",
     CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
     CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
     CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
@@ -5432,6 +5432,7 @@
     });
     function onField(ev){
       var el = ev.target.closest("[data-f]"); if(!el || !estVer()) return;
+      if(!el.isConnected) return; // a line that was just redrawn (e.g. Catalog fill) must not write its old text back
       var r = estFind(el), f = el.dataset.f, e = r.e;
       var val = el.type === "checkbox" ? el.checked : el.value;
       var rerender = false;
@@ -5760,6 +5761,8 @@
     function pick(i){
       var cat = items[i], el = inp; if(!cat || !el) return;
       var r = estFind(el), it = r.item; close(); if(!it) return;
+      // Let the box finish its own pending edit first (the typed search text), so it can't overwrite the catalog fill afterward.
+      try { el.blur(); } catch(e){}
       it.description = cat.description; it.type = cat.type === "labor" ? "labor" : "material"; it.unit = it.type === "labor" ? "hr" : (cat.unit || "ea");
       it.unitCost = Number(cat.unitCost) || 0; if(it.type !== "labor") it.taxable = cat.taxable !== false;
       estSaveSoon(); estFocusId = it.id; renderEstimate(); toast("Filled from the Catalog");
