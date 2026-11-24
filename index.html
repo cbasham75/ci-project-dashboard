@@ -71,7 +71,19 @@
   .topbar-right-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .brand-block{display:flex;flex-direction:column;gap:8px;flex:0 0 auto;}
   .brand{display:flex;align-items:baseline;gap:10px;}
-  .header-search{flex:1 1 auto;min-width:120px;position:relative;}
+  .header-search{flex:0 1 240px;min-width:120px;max-width:240px;position:relative;}
+  .user-menu{position:relative;}
+  .user-pop{display:none;position:absolute;right:0;top:100%;margin-top:4px;z-index:120;background:var(--paper-raised);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:190px;padding:4px;}
+  .user-pop.open{display:block;}
+  .user-pop button{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--ink);padding:8px 10px;border-radius:6px;font-size:13px;cursor:pointer;}
+  .user-pop button:hover{background:rgba(44,82,130,.15);}
+  .todo-badge{font-weight:700;color:var(--blue);}
+  .col-sort{margin-top:4px;width:100%;font-size:11px;padding:2px 4px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--ink-soft);}
+  .est-sec.off .est-sec-head .est-title,.est-sec.off .est-sec-head .mono{opacity:.5;text-decoration:line-through;}
+  .est-sec.off{opacity:.8;}
+  .alt-tag{font-size:11px;font-weight:700;color:#8a5a00;background:#fff3bf;border-radius:4px;padding:2px 6px;}
+  .alert-item.go{cursor:pointer;}
+  .alert-item.go:hover{background:rgba(44,82,130,.10);}
   .header-search input{padding-right:30px !important;}
   .search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:var(--line);color:var(--ink);width:20px;height:20px;border-radius:50%;font-size:11px;line-height:20px;padding:0;cursor:pointer;}
   .search-clear:hover{background:var(--red);color:#fff;}
@@ -600,9 +612,14 @@
     <div class="topbar-right">
       <div class="topbar-right-top">
         <div class="user-field" id="userField" style="display:none;">
-          Signed in as <strong id="signedInName" style="color:var(--ink);"></strong>
-          <button class="btn ghost small" id="changePasswordBtn">Change password</button>
-          <button class="btn ghost small" id="logoutBtn">Log out</button>
+          <div class="user-menu" id="userMenu">
+            <button type="button" class="btn ghost small" id="userMenuBtn" aria-haspopup="true">Signed in as <strong id="signedInName" style="color:var(--ink);"></strong> <span id="todoBadge" class="todo-badge"></span> ▾</button>
+            <div class="user-pop" id="userPop">
+              <button type="button" id="todoBtn">✅ My To-Do <span id="todoCount" style="font-weight:700;"></span></button>
+              <button type="button" id="changePasswordBtn">🔑 Change password</button>
+              <button type="button" id="logoutBtn">Log out</button>
+            </div>
+          </div>
           <span id="appVer" style="font-size:10px;color:var(--ink-soft);opacity:.7;margin-left:6px;" title="App version"></span>
         </div>
         <div class="bell-wrap">
@@ -625,7 +642,6 @@
     <button class="btn ghost small" id="reportsBtn">📊 Reports</button>
     <button class="btn ghost small" id="libraryBtn">📚 Library</button>
     <button class="btn ghost small" id="catalogBtn">📦 Catalog</button>
-    <button class="btn ghost small" id="todoBtn">✅ My To-Do <span id="todoCount" style="font-weight:700;"></span></button>
     <button class="btn ghost small" id="settingsBtn" title="Site settings" aria-label="Site settings">⚙️</button>
     <input type="file" id="importFile" accept="application/json" style="display:none;">
   </div>
@@ -818,6 +834,7 @@
   /* ---------------- CONFIG: labels, lists and site-specific values live here ---------------- */
   var CONFIG = {
     // Site owner(s): can manage the whole suggestion list. (Server-side policy lives in the suggestions table.)
+    COLUMN_SORTS: [["manual","Manual order"],["status","Status"],["due","Due date"],["name","Name A–Z"],["value","Value (high to low)"],["newest","Newest first"],["oldest","Oldest first"],["progress","% complete"]],
     WO_ALLOT_PCT: 90,                   // work order: allotted labor hours = this % of counted estimate labor hours
     WO_EXCLUDE_SECTIONS: ["general & project costs"],   // labor in these estimate sections is not counted
     WO_EXCLUDE_WORDS: "pm|project manage\\w*|travel|misc\\w*",   // labor lines/subsections matching these words are not counted
@@ -846,7 +863,7 @@
     DEFAULT_ROLES: [{key:"billing",label:"Billing",people:["Hollie Treese"]},{key:"sales",label:"Sales",people:["Tyler Murray"]},{key:"estimates",label:"Estimates",people:["Chris Basham"]},{key:"ops",label:"Ops/Projects",people:["Hali McNair","Kerry Peace"]}],
     DEFAULT_ALERT_ROUTES: {estimateCompleteFallback:"sales"},
     // Shown small in the header so you can tell which version loaded. Bump with every delivery: whole number = big change, decimal = small change.
-    APP_VERSION: "4.1",
+    APP_VERSION: "5.0",
     CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
     CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
     CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
@@ -969,7 +986,7 @@
     var res = await supabaseClient.from("alerts").select("*").order("created_at", {ascending:false}).limit(200);
     if(res.error) throw res.error;
     return res.data.map(function(row){
-      return {id:row.id, cardId:row.card_id, projectName:row.project_name, message:row.message, timestamp:row.created_at, read:!!row.read, assignedTo:row.assigned_to||""};
+      return {id:row.id, cardId:row.card_id, projectName:row.project_name, message:row.message, timestamp:row.created_at, read:!!row.read, assignedTo:row.assigned_to||"", tab:row.tab||""};
     });
   }
   // Falls back to the hardcoded roster above if the table can't be reached — the app
@@ -1240,7 +1257,7 @@
     try { localStorage.setItem(ALERT_KEY, JSON.stringify(alerts)); } catch(e){}
     if(!supabaseClient || !alerts.length) return;
     var rows = alerts.map(function(a){
-      return {id:a.id, card_id:a.cardId||null, project_name:a.projectName||null, message:a.message, created_at:a.timestamp, read:!!a.read, assigned_to:a.assignedTo||null};
+      return {id:a.id, card_id:a.cardId||null, project_name:a.projectName||null, message:a.message, created_at:a.timestamp, read:!!a.read, assigned_to:a.assignedTo||null, tab:a.tab||null};
     });
     supabaseClient.from("alerts").upsert(rows).then(function(res){
       if(res.error) console.error("Alert save failed", res.error);
@@ -1410,9 +1427,10 @@
     setTimeout(function(){ el.remove(); }, 3200);
   }
 
+  function alertTab(cardId){ return (activeDetailId && activeDetailId === cardId) ? activeTab : ""; }
   function pushAlert(cardId, projectName, message, assignedTo){
     alerts.unshift({
-      id: uid(), cardId: cardId, projectName: projectName,
+      id: uid(), cardId: cardId, projectName: projectName, tab: alertTab(cardId),
       message: message, timestamp: new Date().toISOString(), read:false, assignedTo: assignedTo || ""
     });
     saveAlerts();
@@ -1503,12 +1521,30 @@
       (c.id||"").toLowerCase().indexOf(q) !== -1;
   }
 
+  var COLSORT_KEY = "ci_col_sort_v1", colSort = {};
+  try { colSort = JSON.parse(localStorage.getItem(COLSORT_KEY)) || {}; } catch(e){ colSort = {}; }
+  function sortColCards(list, mode){
+    if(!mode || mode === "manual") return list;
+    function nm(c){ return String(c.projectName || "").toLowerCase(); }
+    function stageIdx(c){ var i = STAGE_KEYS.indexOf(c.estimatingStage); return i === -1 ? 99 : i; }
+    function due(c){ return c.bidDueDate ? (c.bidDueDate + " " + (c.bidDueTime || "")) : "9999"; }
+    var cmp = {
+      status: function(a, b){ var x = (a.status === "estimating" || a.status === "estimate_submitted") ? stageIdx(a) - stageIdx(b) : (Number(a.pm && a.pm.percentComplete) || 0) - (Number(b.pm && b.pm.percentComplete) || 0); return x || nm(a).localeCompare(nm(b)); },
+      due: function(a, b){ return due(a).localeCompare(due(b)) || nm(a).localeCompare(nm(b)); },
+      name: function(a, b){ return nm(a).localeCompare(nm(b)); },
+      value: function(a, b){ return tileValue(b) - tileValue(a); },
+      newest: function(a, b){ return String(b.createdAt || "").localeCompare(String(a.createdAt || "")); },
+      oldest: function(a, b){ return String(a.createdAt || "").localeCompare(String(b.createdAt || "")); },
+      progress: function(a, b){ return (Number(b.pm && b.pm.percentComplete) || 0) - (Number(a.pm && a.pm.percentComplete) || 0); }
+    }[mode];
+    return cmp ? list.slice().sort(cmp) : list;
+  }
   function renderBoard(){
     var board = document.getElementById("board");
     board.innerHTML = "";
     renderServiceColumn(board);
     COLUMNS.forEach(function(col){
-      var colCards = cards.filter(function(c){ return c.status === col.key && !isArchived(c) && matchesSearch(c); });
+      var colCards = sortColCards(cards.filter(function(c){ return c.status === col.key && !isArchived(c) && matchesSearch(c); }), colSort[col.key]);
       var colTotal = colCards.reduce(function(s,c){ return s + tileValue(c); }, 0);
 
       var colEl = document.createElement("div");
@@ -1520,9 +1556,15 @@
         '<div class="column-head">' +
           '<div class="title"><span>' + esc(col.label) + '</span><span class="count">' + colCards.length + '</span></div>' +
           '<div class="total">' + money(colTotal) + ' total</div>' +
+          '<select class="col-sort" data-col-sort="' + col.key + '" title="Sort this column">' + CONFIG.COLUMN_SORTS.map(function(o){ return '<option value="' + o[0] + '"' + ((colSort[col.key] || "manual") === o[0] ? " selected" : "") + '>' + (o[0] === "manual" ? "Sort: " : "Sort: ") + o[1] + '</option>'; }).join("") + '</select>' +
         '</div>' +
         '<div class="column-body"></div>';
 
+      colEl.querySelector(".col-sort").addEventListener("change", function(e){
+        colSort[col.key] = e.target.value;
+        try { localStorage.setItem(COLSORT_KEY, JSON.stringify(colSort)); } catch(err){}
+        renderBoard();
+      });
       var body = colEl.querySelector(".column-body");
       colCards.forEach(function(card){
         body.appendChild(renderCardEl(card));
@@ -1564,6 +1606,7 @@
     var total = 0, excluded = 0, has = false, est = v.estimate;
     if(est && Array.isArray(est.sections)){
       est.sections.forEach(function(sec){
+        if(sec.off === true) return;
         var secEx = CONFIG.WO_EXCLUDE_SECTIONS.indexOf(String(sec.title || "").trim().toLowerCase()) !== -1;
         (sec.subsections || []).forEach(function(sub){
           (sub.items || []).forEach(function(it){
@@ -1580,14 +1623,23 @@
     return {total:total, excluded:excluded, counted:counted, allotted:Math.round(counted * CONFIG.WO_ALLOT_PCT / 100 * 10) / 10, pct:CONFIG.WO_ALLOT_PCT, fromVersion:fromVersion};
   }
   function sowLabel(u){ return (u.type || "Update") + (u.number ? " " + u.number : ""); }
+  var sowEdit = -1;
   function sowBlockHtml(c){
     if(!Array.isArray(c.sowUpdates)) c.sowUpdates = [];
     var ups = c.sowUpdates;
     var list = ups.slice().reverse().map(function(u, ri){
       var i = ups.length - 1 - ri;
+      if(sowEdit === i){
+        return '<div class="note-item"><div><b>Rev ' + (i + 1) + '</b> — editing</div><div class="row2">' +
+          '<div class="field"><label>Type</label><select id="sowEType">' + CONFIG.SOW_UPDATE_TYPES.map(function(t){ return '<option' + (t === u.type ? ' selected' : '') + '>' + t + '</option>'; }).join("") + '</select></div>' +
+          '<div class="field"><label>Number</label><input type="text" id="sowENum" value="' + esc(u.number || "") + '"></div></div>' +
+          '<div class="row2"><div class="field"><label>Date</label><input type="date" id="sowEDate" value="' + esc(u.date || "") + '"></div><div></div></div>' +
+          '<div class="field"><label>What changed in the scope</label><textarea id="sowEText" style="min-height:70px;">' + esc(u.text || "") + '</textarea></div>' +
+          '<div class="inline-row"><button type="button" class="btn small primary" data-sow-save="' + i + '">💾 Save</button><button type="button" class="btn small" data-sow-cancel="1">Cancel</button></div></div>';
+      }
       return '<div class="note-item"><div><b>Rev ' + (i + 1) + ' — ' + esc(sowLabel(u)) + '</b> · ' + esc(u.date || "") + '</div>' +
         '<div style="white-space:pre-wrap;">' + esc(u.text) + '</div>' +
-        '<div class="meta">' + esc(u.createdBy || "") + (u.createdAt ? ' — ' + new Date(u.createdAt).toLocaleString() : '') + ' · <a href="#" data-sow-del="' + i + '">Remove</a></div></div>';
+        '<div class="meta">' + esc(u.createdBy || "") + (u.createdAt ? ' — ' + new Date(u.createdAt).toLocaleString() : '') + (u.editedAt ? ' · edited by ' + esc(u.editedBy || "Unknown") + ' ' + new Date(u.editedAt).toLocaleString() : '') + ' · <a href="#" data-sow-edit="' + i + '">✏️ Edit</a> · <a href="#" data-sow-del="' + i + '">Remove</a></div></div>';
     }).join("") || '<div class="note-empty">No scope updates yet. The Work Order shows the original scope (Rev 0).</div>';
     return '<div class="field"><label>SOW updates (bulletins, ASIs, addenda) — Work Order is at Rev ' + ups.length + '</label>' + list +
       '<div class="subcard" style="padding:10px;margin-top:6px;"><div class="row2">' +
@@ -1778,6 +1830,8 @@
     var n = todos.filter(function(t){ return !t.done; }).length;
     var el = document.getElementById("todoCount");
     if(el) el.textContent = n ? "(" + n + ")" : "";
+    var bd = document.getElementById("todoBadge");
+    if(bd) bd.textContent = n ? "✅" + n : "";
   }
   function newId(){
     return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(ch){
@@ -1943,6 +1997,12 @@
     var n = document.getElementById("todoInput"); if(n) n.focus();
   }
   document.getElementById("todoBtn").addEventListener("click", showTodos);
+  (function userMenu(){
+    var btn = document.getElementById("userMenuBtn"), pop = document.getElementById("userPop");
+    btn.addEventListener("click", function(e){ e.stopPropagation(); pop.classList.toggle("open"); });
+    pop.addEventListener("click", function(){ pop.classList.remove("open"); });
+    document.addEventListener("click", function(){ pop.classList.remove("open"); });
+  })();
 
   /* ---------------- Service Jobs ---------------- */
   var serviceJobs = [];
@@ -2624,6 +2684,15 @@
     if(!supabaseClient) return Promise.resolve();
     return supabaseClient.from("library_companies").delete().eq("id", id);
   }
+  var libUnsavedIds = {};
+  function normCoName(n){
+    return String(n || "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9 ]/g, " ")
+      .replace(/\b(inc|llc|l l c|corp|corporation|co|company|ltd|the)\b/g, " ").replace(/\s+/g, " ").trim();
+  }
+  function findDuplicateCompany(name, excludeId){
+    var k = normCoName(name); if(!k) return null;
+    return libraryCompanies.find(function(c){ return c.id !== excludeId && normCoName(c.name) === k; }) || null;
+  }
   function findCompanyByName(name){
     if(!name) return null;
     return libraryCompanies.find(function(c){ return c.name === name; }) || null;
@@ -2739,7 +2808,7 @@
     el.querySelector("#libSelect").addEventListener("change", function(e){ libSelectedId = e.target.value; libOpen = true; irReset(); renderLibrary(); });
     el.querySelector("#libNewBtn").addEventListener("click", function(){
       var co = blankCompany();
-      libraryCompanies.push(co);
+      libraryCompanies.push(co); libUnsavedIds[co.id] = true;
       libSelectedId = co.id; libOpen = true; irReset();
       renderLibrary();
       var n = el.querySelector('[data-co="name"]'); if(n) n.focus();
@@ -2753,8 +2822,20 @@
       var sv = el.querySelector("#libSaveBtn");
       if(sv) sv.addEventListener("click", function(){
         if(!(sel.name||"").trim()){ toast("Company name is required"); return; }
+        var dup = findDuplicateCompany(sel.name, sel.id);
+        if(dup){
+          if(libUnsavedIds[sel.id]){
+            libraryCompanies.splice(libraryCompanies.indexOf(sel), 1); delete libUnsavedIds[sel.id];
+            libSelectedId = dup.id; irReset(); renderLibrary();
+            toast("“" + dup.name + "” is already in the Library — opened it instead");
+          } else {
+            toast("Another company is already named “" + dup.name + "” — use a different name");
+          }
+          return;
+        }
         saveCompanyRemote(sel).then(function(res){
           if(res && res.error){ toast("Couldn't save — " + res.error.message); return; }
+          delete libUnsavedIds[sel.id];
           toast("Saved " + sel.name);
           renderLibrary();
         });
@@ -3477,12 +3558,23 @@
       return;
     }
     list.innerHTML = mineList.slice(0,25).map(function(a){
-      return '<div class="alert-item">' +
-        '<div>' + esc(a.message) + '</div>' +
+      var live = a.cardId && cards.some(function(x){ return x.id === a.cardId; });
+      return '<div class="alert-item' + (live ? ' go' : '') + '"' + (live ? ' data-alert-go="' + esc(a.id) + '" title="Open ' + esc(a.cardId) + '"' : '') + '>' +
+        '<div>' + esc(a.message) + (live ? ' <span style="color:var(--blue);font-weight:600;">→ open</span>' : '') + '</div>' +
         '<div class="t">' + new Date(a.timestamp).toLocaleString() + '</div></div>';
     }).join("");
   }
 
+  document.getElementById("alertsList").addEventListener("click", function(e){
+    var it = e.target.closest("[data-alert-go]"); if(!it) return;
+    var a = alerts.find(function(x){ return x.id === it.dataset.alertGo; });
+    var c = a && cards.find(function(x){ return x.id === a.cardId; });
+    if(!c){ toast("That card is no longer on the board"); return; }
+    document.getElementById("alertsPanel").classList.remove("open");
+    openDetail(c.id);
+    var valid = ["overview","estimating","project","pm","billing","co","closeout","hla"];
+    if(a.tab && valid.indexOf(a.tab) !== -1){ activeTab = a.tab; renderDetail(); }
+  });
   document.getElementById("bellBtn").addEventListener("click", function(){
     var panel = document.getElementById("alertsPanel");
     panel.classList.toggle("open");
@@ -3735,7 +3827,7 @@
     var coTotal = (c.changeOrders||[]).reduce(function(s,co){ return s+(Number(co.amount)||0); },0);
     return '<div>Contract amount<strong>' + money(c.contractAmount) + '</strong></div>' +
       '<div>Change orders<strong>' + money(coTotal) + '</strong></div>' +
-      '<div>Total value<strong>' + money(totalValue(c)) + '</strong></div>' +
+      '<div>' + (COLUMNS.findIndex(function(k){ return k.key === c.status; }) < COLUMNS.findIndex(function(k){ return k.key === "project_created"; }) ? "Estimate value" : "Total value") + '<strong>' + money(tileValue(c)) + '</strong></div>' +
       '<div>% complete<strong>' + (Number(c.pm.percentComplete)||0) + '%</strong></div>';
   }
 
@@ -4191,6 +4283,8 @@
       '<p class="section-title">Billing schedule</p>' +
       '<div id="billingList">' + billingListHtml(c) + '</div>' +
       '<button class="add-row-btn" id="addBillingBtn">+ Add billing item</button>' +
+      '<p class="section-title" style="margin-top:20px;">Billing notes</p>' +
+      noteLogHtml(c.pm.billingNotes, "b:0", "Add a billing note — type @ to tag someone") +
 
       '<p class="section-title" style="margin-top:20px;">Accounts payable — ' + (co ? esc(co.name) : 'no winning contractor selected') + '</p>' +
       (co ? '<div class="subcard co-summary">' + (companyApSummaryHtml(co) || '<div class="note-empty">No AP info on file for this company in the Library.</div>') + '</div>'
@@ -4220,7 +4314,9 @@
   // Generic timestamped, editable note log (estimator notes on versions and change orders).
   var noteEdit = null; // {key, idx}
   function noteTarget(c, key){
-    var p = key.split(":"), o = p[0] === "v" ? c.estimateVersions[Number(p[1])] : c.changeOrders[Number(p[1])];
+    var p = key.split(":");
+    if(p[0] === "b"){ if(!Array.isArray(c.pm.billingNotes)) c.pm.billingNotes = []; return c.pm.billingNotes; }
+    var o = p[0] === "v" ? c.estimateVersions[Number(p[1])] : c.changeOrders[Number(p[1])];
     if(!o) return null;
     if(!Array.isArray(o.notes)) o.notes = [];
     return o.notes;
@@ -4277,7 +4373,9 @@
       var collapsed = !!collapsedCO[i];
       var coValue = Number(co.amount)||0;
       var head = '<div class="subhead"><span class="badge">' + esc(co.num) + '</span>' +
+        (co.complete ? '<span class="badge" style="background:var(--green);color:#fff;" title="' + esc((co.completedBy || "") + (co.completedAt ? " — " + new Date(co.completedAt).toLocaleString() : "")) + '">✔ Complete</span>' : '') +
         '<div style="display:flex;gap:8px;align-items:center;">' +
+          (co.complete ? '<button type="button" class="btn small" data-reopen-co="' + i + '">↩ Reopen</button>' : '') +
           '<button type="button" class="btn small" data-toggle-co="' + i + '">' + (collapsed ? "▸ Expand" : "▾ Collapse") + '</button>' +
           '<button class="miniremove" data-remove-co="' + i + '">Remove</button>' +
         '</div>' +
@@ -4285,7 +4383,7 @@
 
       if(collapsed){
         var summary = esc(co.description || "No description yet") + " — " + money(coValue) +
-          (co.approved ? " · ✅ Approved" : "") + (co.sent ? " · Sent" : "") + (co.billed ? " · Billed" : "");
+          (co.complete ? " · ✔ Complete" : "") + (co.approved ? " · ✅ Approved" : "") + (co.sent ? " · Sent" : "") + (co.billed ? " · Billed" : "");
         return '<div class="subcard" data-row-index="' + i + '">' + head +
           '<div style="font-size:12.5px;color:var(--ink-soft);">' + summary + '</div>' +
         '</div>';
@@ -4297,7 +4395,6 @@
           '<p class="co-section-title">CO Request</p>' +
           '<div class="field"><label>CO instructions</label><textarea data-field="coInstructions" placeholder="What was requested / needs pricing">' + esc(co.coInstructions) + '</textarea></div>' +
           '<div class="field" style="max-width:200px;"><label>Due date</label><input type="date" data-field="coDueDate" value="' + esc(co.coDueDate) + '"></div>' +
-          '<button class="btn small primary" data-save-co-request="' + i + '">💾 Save request</button>' +
         '</div>' +
 
         '<hr class="co-divider">' +
@@ -4317,8 +4414,9 @@
             '<label class="checkline" style="padding-bottom:9px;"><input type="checkbox" data-field="approved" data-co-checkbox="' + i + '" ' + (co.approved?"checked":"") + '> Approved</label>' +
             '<div class="field" style="flex:1 1 160px;"><label>Approved by</label><select data-field="approvedBy">' + teamMemberOptionsHtml(co.approvedBy) + '</select></div>' +
           '</div>' +
-          '<button class="btn small primary" data-save-co-details="' + i + '" style="margin-top:8px;">💾 Save details</button>' +
         '</div>' +
+        '<div class="inline-row" style="margin-top:10px;"><button class="btn small primary" data-save-co="' + i + '">💾 Save change order</button>' +
+          (co.complete ? '' : '<button class="btn small" data-complete-co="' + i + '" title="Save and mark this change order finished">✔ Mark complete</button>') + '</div>' +
       '</div>';
     }).join("");
   }
@@ -4662,6 +4760,21 @@
       c.sowUpdates.push({type:host.querySelector("#sowType").value, number:host.querySelector("#sowNum").value.trim(), date:host.querySelector("#sowDate").value, text:text, createdBy:getUser() || "Unknown", createdAt:new Date().toISOString()});
       saveCards(); toast("SOW update added — Work Order is now Rev " + c.sowUpdates.length); renderDetail();
     });
+    host.querySelectorAll("[data-sow-edit]").forEach(function(a){
+      a.addEventListener("click", function(e){ e.preventDefault(); sowEdit = Number(a.dataset.sowEdit); renderDetail(); });
+    });
+    host.querySelectorAll("[data-sow-cancel]").forEach(function(b){ b.addEventListener("click", function(){ sowEdit = -1; renderDetail(); }); });
+    host.querySelectorAll("[data-sow-save]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var u = c.sowUpdates[Number(b.dataset.sowSave)]; if(!u) return;
+        var text = host.querySelector("#sowEText").value.trim();
+        if(!text){ toast("Describe what changed in the scope"); return; }
+        u.type = host.querySelector("#sowEType").value; u.number = host.querySelector("#sowENum").value.trim();
+        u.date = host.querySelector("#sowEDate").value; u.text = text;
+        u.editedAt = new Date().toISOString(); u.editedBy = getUser() || "Unknown";
+        sowEdit = -1; saveCards(); toast("SOW update saved"); renderDetail();
+      });
+    });
     host.querySelectorAll("[data-sow-del]").forEach(function(a){
       a.addEventListener("click", function(e){
         e.preventDefault();
@@ -4896,24 +5009,33 @@
         renderDetail();
       });
     });
-    host.querySelectorAll("[data-save-co-request]").forEach(function(btn){
+    function coSave(i, block){
+      Object.assign(c.changeOrders[i], readRow(block, ["amount"]));
+    }
+    host.querySelectorAll("[data-save-co]").forEach(function(btn){
       btn.addEventListener("click", function(){
-        var i = Number(btn.dataset.saveCoRequest);
-        var block = btn.closest(".co-request-block");
-        Object.assign(c.changeOrders[i], readRow(block));
-        saveCards();
-        toast(c.changeOrders[i].num + " request saved");
+        var i = Number(btn.dataset.saveCo);
+        coSave(i, btn.closest(".subcard"));
+        saveCards(); updateSummaryBar(); renderBoard();
+        toast(c.changeOrders[i].num + " saved");
       });
     });
-    host.querySelectorAll("[data-save-co-details]").forEach(function(btn){
+    host.querySelectorAll("[data-complete-co]").forEach(function(btn){
       btn.addEventListener("click", function(){
-        var i = Number(btn.dataset.saveCoDetails);
-        var block = btn.closest(".co-details-block");
-        Object.assign(c.changeOrders[i], readRow(block, ["amount"]));
-        saveCards();
-        updateSummaryBar();
-        renderBoard();
-        toast(c.changeOrders[i].num + " details saved");
+        var i = Number(btn.dataset.completeCo), co = c.changeOrders[i];
+        coSave(i, btn.closest(".subcard"));
+        co.complete = true; co.completedAt = new Date().toISOString(); co.completedBy = getUser() || "Unknown";
+        collapsedCO[i] = true;
+        saveCards(); updateSummaryBar(); renderBoard(); renderDetail();
+        toast(co.num + " marked complete");
+      });
+    });
+    host.querySelectorAll("[data-reopen-co]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = Number(btn.dataset.reopenCo), co = c.changeOrders[i];
+        co.complete = false; co.completedAt = ""; co.completedBy = "";
+        collapsedCO[i] = false;
+        saveCards(); renderBoard(); renderDetail();
       });
     });
     host.querySelectorAll("[data-remove-co]").forEach(function(el){
@@ -5156,6 +5278,8 @@
     list.forEach(function(sec){ sec.subsections.forEach(function(u){ out = out.concat(u.items); }); });
     return out;
   }
+  function estOn(sections){ return sections.filter(function(x){ return x.off !== true; }); }
+  function estOff(sections){ return sections.filter(function(x){ return x.off === true; }); }
   function estLineCount(v){
     var n = 0;
     if(v && v.estimate && Array.isArray(v.estimate.sections)){
@@ -5198,7 +5322,7 @@
   }
   function estSyncVersion(v){
     if(!v || !v.estimate || !estLineCount(v)) return;
-    var t = estCalc(estFlat(v.estimate.sections), v.estimate);
+    var t = estCalc(estFlat(estOn(v.estimate.sections)), v.estimate);
     v.materialPrice = r2(t.matPrice); v.laborPrice = r2(t.labPrice); v.tax = r2(t.tax); v.laborHours = r2(t.hours);
   }
   function estSaveSoon(){
@@ -5241,7 +5365,8 @@
         });
       });
     });
-    var t = estCalc(estFlat(e.sections), e);
+    var t = estCalc(estFlat(estOn(e.sections)), e);
+    setTxt(host, "#estT_alt", money(estCalc(estFlat(estOff(e.sections)), e).total));
     setTxt(host, "#estT_mat", money(t.matPrice)); setTxt(host, "#estT_lab", money(t.labPrice));
     setTxt(host, "#estT_tax", money(t.tax)); setTxt(host, "#estT_total", money(t.total));
     setTxt(host, "#estT_hours", String(r2(t.hours)));
@@ -5276,8 +5401,10 @@
   }
   function secHtml(sec, e){
     var col = !!estCollapsed[sec.id], secT = estCalc(estFlat([sec]), e);
-    return '<div class="est-sec" data-sid="' + sec.id + '"><div class="est-sec-head">' +
+    return '<div class="est-sec' + (sec.off ? ' off' : '') + '" data-sid="' + sec.id + '"><div class="est-sec-head">' +
       '<button class="btn small" data-act="togsec">' + (col ? "▶" : "▼") + '</button>' +
+      '<label class="checkline" title="Untick to leave this section out of the totals (an alternate, or just exploring pricing)"><input type="checkbox" data-f="secon"' + (sec.off ? '' : ' checked') + '> Include</label>' +
+      (sec.off ? '<span class="alt-tag">Alternate — not in totals</span>' : '') +
       '<input class="est-title" data-f="sectitle" value="' + esc(sec.title || "") + '" placeholder="Section">' +
       '<span class="mono" style="font-weight:700;font-size:15px;" data-sectotal="' + sec.id + '">' + money(estCalc(estFlat([sec]), e).total) + '</span>' +
       '<button class="est-mv" data-act="secup" title="Move up">▲</button><button class="est-mv" data-act="secdn" title="Move down">▼</button>' +
@@ -5290,7 +5417,7 @@
     var c = estCard(), v = estVer(); if(!c || !v) return;
     var e = ensureEstimate(v), host = document.getElementById("estimateScreen");
     var oldBody = host.querySelector(".est-body"), scroll = oldBody ? oldBody.scrollTop : 0;
-    var t = estCalc(estFlat(e.sections), e), g = estGlance(t, e);
+    var t = estCalc(estFlat(estOn(e.sections)), e), g = estGlance(t, e), altSecs = estOff(e.sections), altT = estCalc(estFlat(altSecs), e);
     host.innerHTML =
       '<div class="est-head"><button class="btn back-btn" data-act="back">← Back to card</button>' +
         '<h2>Estimate — ' + esc(c.projectName || "Untitled") + ' <span class="mono" style="font-weight:400;color:var(--ink-soft);">' + esc(c.id) + ' · V' + (estCtx.vi + 1) + (v.stage ? " · " + esc(v.stage) : "") + '</span></h2>' +
@@ -5315,7 +5442,8 @@
       '<div class="est-body">' + (e.sections.length ? e.sections.map(function(sec){ return secHtml(sec, e); }).join("") : '<div class="note-empty">No sections yet. Add one below, or import a quote from Claude.</div>') +
         '<button class="add-row-btn" data-act="addsec">+ Add section</button></div>' +
       '<div class="est-foot"><div>Materials<strong id="estT_mat">' + money(t.matPrice) + '</strong></div><div>Labor<strong id="estT_lab">' + money(t.labPrice) + '</strong></div>' +
-        '<div>Tax<strong id="estT_tax">' + money(t.tax) + '</strong></div><div>Total<strong id="estT_total">' + money(t.total) + '</strong></div><div>Labor hours<strong id="estT_hours">' + r2(t.hours) + '</strong></div>' +
+        '<div>Tax<strong id="estT_tax">' + money(t.tax) + '</strong></div><div>Total<strong id="estT_total">' + money(t.total) + '</strong></div>' +
+        (altSecs.length ? '<div title="Sections turned off: what they would add if included">Alternates (not included)<strong id="estT_alt">' + money(altT.total) + '</strong></div>' : '') + '<div>Labor hours<strong id="estT_hours">' + r2(t.hours) + '</strong></div>' +
         '<div style="margin-left:auto;font-size:11.5px;">Totals feed this version\'s Material / Labor / Tax / Hours automatically.</div></div>' +
       '<div class="est-foot est-glance"><div>Total cables<strong id="estG_cables">' + g.cables + '</strong></div>' +
         '<div title="Labor hours / (techs x hours per day)">Crew days<strong id="estG_days">' + g.days + '</strong></div>' +
@@ -5352,7 +5480,7 @@
     if(!Array.isArray(secs)) throw new Error('Expected "sections" (or "items") in the JSON');
     var out = secs.map(function(sc, i){
       var subs = Array.isArray(sc.subsections) ? sc.subsections : (Array.isArray(sc.items) ? [{title:sc.title || "Items", items:sc.items}] : []);
-      return {id:uid(), title:String(sc.title || ("Section " + (i + 1))), scope:String(sc.scope || ""), subsections: subs.map(function(u, j){
+      return {id:uid(), title:String(sc.title || ("Section " + (i + 1))), scope:String(sc.scope || ""), off:(sc.include === false), subsections: subs.map(function(u, j){
         return {id:uid(), title:String(u.title || ("Subsection " + (j + 1))), items:(Array.isArray(u.items) ? u.items : []).map(estNormItem)};
       })};
     });
@@ -5394,7 +5522,7 @@
       if(act === "clearmk"){ estFlat(e.sections).forEach(function(it){ it.markup = null; }); estSaveSoon(); renderEstimate(); toast("Line markups reset — every line follows the defaults"); return; }
       if(act === "exportjson"){
         var blob = new Blob([JSON.stringify({taxRate:e.taxRate, materialMarkup:e.materialMarkup, laborMarkup:e.laborMarkup, scope:e.scope || "", cableCount:e.cables === null ? undefined : e.cables,
-          sections:e.sections.map(function(sec){ return {title:sec.title, scope:sec.scope || "", subsections:sec.subsections.map(function(u){ return {title:u.title, items:u.items.map(function(it){
+          sections:e.sections.map(function(sec){ return {title:sec.title, scope:sec.scope || "", include:(sec.off ? false : undefined), subsections:sec.subsections.map(function(u){ return {title:u.title, items:u.items.map(function(it){
             var o = {type:it.type, description:it.description, qty:it.qty, unit:it.unit, unitCost:it.unitCost}; if(it.markup !== null && it.markup !== undefined) o.markup = it.markup; if(it.taxable === false && it.type !== "labor") o.taxable = false; return o; })}; })}; })}, null, 2)], {type:"application/json"});
         var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "estimate-" + estCtx.cardId + "-V" + (estCtx.vi + 1) + ".json"; a.click(); URL.revokeObjectURL(a.href);
         return;
@@ -5438,6 +5566,7 @@
       var rerender = false;
       if(f === "sectitle" && r.sec) r.sec.title = val;
       else if(f === "secscope" && r.sec) r.sec.scope = val;
+      else if(f === "secon" && r.sec){ r.sec.off = !val; rerender = true; }
       else if(f === "scope") e.scope = val;
       else if(f === "cables") e.cables = (val === "" || isNaN(parseFloat(val))) ? null : parseFloat(val);
       else if(f === "techs" || f === "hoursPerDay") e[f] = parseFloat(val) || 0;
@@ -6009,9 +6138,17 @@
     var t = formatDateISO(new Date());
     return {id:uid(), phase:tripPhases[0] ? tripPhases[0].key : "other", desc:"", start:t, startTime:CONFIG.TRIP_DEFAULT_START, end:t, endTime:CONFIG.TRIP_DEFAULT_END, techs:[], status:"scheduled", notes:[]};
   }
+  var tripCollapsed = {};
   function tripHtml(t){
+    if(tripCollapsed[t.id]){
+      var st = (CONFIG.TRIP_STATUSES.find(function(x){ return x[0] === t.status; }) || ["", t.status || ""])[1];
+      return '<div class="subcard" data-trip="' + t.id + '" style="padding:6px 10px;border-left:6px solid ' + esc(phaseOf(t.phase).color) + ';">' +
+        '<div class="inline-row"><button type="button" class="btn small" data-trip-toggle="' + t.id + '" title="Expand">▸</button>' +
+        '<span style="flex:1;min-width:160px;font-size:12.5px;"><b>' + esc(phaseOf(t.phase).label) + '</b>' + (t.desc ? ': ' + esc(t.desc) : '') + ' · ' + esc(t.start || "no date") + (t.end && t.end !== t.start ? ' → ' + esc(t.end) : '') + ' · ' + esc(st) + ((t.techs || []).length ? ' · ' + esc(t.techs.join(", ")) : '') + '</span>' +
+        '<button class="miniremove" data-trip-del="' + t.id + '">Remove</button></div></div>';
+    }
     return '<div class="subcard" data-trip="' + t.id + '" style="padding:10px;border-left:6px solid ' + esc(phaseOf(t.phase).color) + ';">' +
-      '<div class="inline-row">' +
+      '<div class="inline-row"><button type="button" class="btn small" data-trip-toggle="' + t.id + '" title="Collapse">▾</button>' +
         '<select class="compact-input" data-tf="phase">' + tripPhases.map(function(p){ return '<option value="' + esc(p.key) + '"' + (p.key === t.phase ? " selected" : "") + '>' + esc(p.label) + '</option>'; }).join("") + '</select>' +
         '<input type="text" class="compact-input" style="flex:1;min-width:160px;" data-tf="desc" value="' + esc(t.desc || "") + '" placeholder="What happens on this trip (e.g. rough in cable, floors 1–2)">' +
         '<select class="compact-input" data-tf="status">' + CONFIG.TRIP_STATUSES.map(function(s){ return '<option value="' + s[0] + '"' + (s[0] === t.status ? " selected" : "") + '>' + s[1] + '</option>'; }).join("") + '</select>' +
@@ -6031,7 +6168,8 @@
     return trips.length ? trips.map(tripHtml).join("") : '<div class="note-empty">No trips scheduled. Add one for each mobilization (rough-in, trim, fiber…).</div>';
   }
   function tripsSectionHtml(c){
-    return '<p class="section-title" style="margin-top:20px;">Mobilizations / trips <span style="font-weight:400;font-size:11.5px;color:var(--ink-soft);">— these show on the Project Calendar Beta</span></p>' +
+    return '<p class="section-title" style="margin-top:20px;">Mobilizations / trips <span style="font-weight:400;font-size:11.5px;color:var(--ink-soft);">— these show on the Project Calendar Beta</span> ' +
+      '<button type="button" class="btn small" id="tripCollapseAll">Collapse all</button> <button type="button" class="btn small" id="tripExpandAll">Expand all</button></p>' +
       '<div id="tripWrap">' + tripsListHtml(c) + '</div><button class="add-row-btn" id="addTripBtn">+ Add trip</button>';
   }
   function wireTrips(host, c){
@@ -6054,6 +6192,8 @@
       }
     });
     wrap.addEventListener("click", function(e){
+      var tg = e.target.closest("[data-trip-toggle]");
+      if(tg){ tripCollapsed[tg.dataset.tripToggle] = !tripCollapsed[tg.dataset.tripToggle]; redraw(); return; }
       var del = e.target.closest("[data-trip-del]");
       if(del){ if(!confirm("Remove this trip?")) return; c.pm.trips = c.pm.trips.filter(function(t){ return t.id !== del.dataset.tripDel; }); saveCards(); redraw(); return; }
       var add = e.target.closest("[data-trip-addnote]");
@@ -6064,6 +6204,9 @@
         notifyMentions(c, text, ""); saveCards(); redraw(); toast("Trip note saved");
       }
     });
+    var tca = host.querySelector("#tripCollapseAll"), tea = host.querySelector("#tripExpandAll");
+    if(tca) tca.addEventListener("click", function(){ (c.pm.trips || []).forEach(function(t){ tripCollapsed[t.id] = true; }); redraw(); });
+    if(tea) tea.addEventListener("click", function(){ tripCollapsed = {}; redraw(); });
     var ab = host.querySelector("#addTripBtn");
     if(ab) ab.addEventListener("click", function(){
       var t = blankTrip(); c.pm.trips.push(t); saveCards(); redraw();
@@ -6340,7 +6483,7 @@
     var seen = {}, n = 0;
     (names || []).forEach(function(name){
       if(!name || seen[name]) return; seen[name] = 1; n++;
-      alerts.unshift({id:uid(), cardId:cardId, projectName:projectName, message:message, timestamp:new Date().toISOString(), read:false, assignedTo:name});
+      alerts.unshift({id:uid(), cardId:cardId, projectName:projectName, tab:alertTab(cardId), message:message, timestamp:new Date().toISOString(), read:false, assignedTo:name});
     });
     if(n){ saveAlerts(); renderAlerts(); }
     return n;
@@ -6525,7 +6668,7 @@
   }
 
   /* ---------------- Suggestion box ---------------- */
-  var suggestions = [], sgShowDone = false;
+  var suggestions = [], sgShowDone = false, sgEditId = "";
   function myEmail(){ return ((currentSession && currentSession.user && currentSession.user.email) || "").toLowerCase(); }
   function isOwner(){ return CONFIG.OWNER_EMAILS.map(function(e){ return e.toLowerCase(); }).indexOf(myEmail()) !== -1; }
   async function loadSuggestions(){
@@ -6548,9 +6691,14 @@
     var owner = isOwner(), me = myEmail();
     function row(x){
       var canDel = owner || (x.author_email || "").toLowerCase() === me;
+      var canEdit = canDel;
+      if(sgEditId === x.id){
+        return '<div class="sg-row"><div class="sg-text"><textarea data-sg-edit-text style="min-height:70px;width:100%;">' + esc(x.text) + '</textarea>' +
+          '<div class="inline-row" style="margin-top:6px;"><button type="button" class="btn small primary" data-sg-save="' + esc(x.id) + '">💾 Save</button><button type="button" class="btn small" data-sg-cancel="1">Cancel</button></div></div></div>';
+      }
       return '<div class="sg-row' + (x.done ? " done" : "") + '">' +
         '<input type="checkbox" data-sg-done="' + esc(x.id) + '" ' + (x.done ? "checked " : "") + (owner ? "" : "disabled title=\"Only the site owner can check these off\" ") + '>' +
-        '<div class="sg-text">' + esc(x.text) + '<div class="sg-meta">' + esc(x.author_name || "Unknown") + ' · ' + new Date(x.created_at).toLocaleDateString() + '</div></div>' +
+        '<div class="sg-text">' + esc(x.text) + '<div class="sg-meta">' + esc(x.author_name || "Unknown") + ' · ' + new Date(x.created_at).toLocaleDateString() + (x.edited_at ? ' · edited' + (x.edited_by ? ' by ' + esc(x.edited_by) : '') + ' ' + new Date(x.edited_at).toLocaleDateString() : '') + (canEdit ? ' · <a href="#" data-sg-edit="' + esc(x.id) + '">✏️ Edit</a>' : '') + '</div></div>' +
         (canDel ? '<button class="miniremove" data-sg-del="' + esc(x.id) + '">Delete</button>' : '') + '</div>';
     }
     m.innerHTML =
@@ -6558,7 +6706,7 @@
       '<button class="close-x" id="sgClose">✕</button></div>' +
       '<div class="modal-body">' +
         '<div class="field"><textarea id="sgText" style="min-height:70px;" placeholder="' + esc(CONFIG.SUGGESTION_PLACEHOLDER) + '"></textarea></div>' +
-        '<button class="btn small primary" id="sgAdd">Add suggestion</button>' +
+        '<button class="btn small primary" id="sgAdd">Add suggestion</button> <button class="btn small" id="sgCopyOpen" title="Copy every open suggestion as text">📋 Copy open</button> <button class="btn small" id="sgCopyAll" title="Copy everything, including completed">📋 Copy all</button>' +
         '<div style="margin-top:14px;">' + (open.length ? open.map(row).join("") : '<div class="note-empty">No open suggestions.</div>') + '</div>' +
         (done.length ? '<button class="add-row-btn" id="sgToggleDone" style="margin-top:10px;">' + (sgShowDone ? "▼ Hide" : "▶ Show") + ' completed (' + done.length + ')</button>' + (sgShowDone ? '<div>' + done.map(row).join("") + '</div>' : '') : '') +
       '</div>';
@@ -6587,6 +6735,23 @@
         var r = await supabaseClient.from("suggestions").delete().eq("id", b.dataset.sgDel);
         if(r && r.error){ toast("Couldn't delete: " + r.error.message); }
         await loadSuggestions(); renderSuggestions();
+      });
+    });
+    function sgText(list){
+      return list.map(function(x){ return (x.done ? "[x] " : "[ ] ") + String(x.text).replace(/\s+/g, " ").trim() + " (" + (x.author_name || "Unknown") + ", " + new Date(x.created_at).toLocaleDateString() + ")"; }).join("\n");
+    }
+    m.querySelector("#sgCopyOpen").addEventListener("click", function(){ copyText(sgText(open), "Copied " + open.length + " open suggestions"); });
+    m.querySelector("#sgCopyAll").addEventListener("click", function(){ copyText(sgText(suggestions), "Copied all " + suggestions.length + " suggestions"); });
+    m.querySelectorAll("[data-sg-edit]").forEach(function(a){ a.addEventListener("click", function(e){ e.preventDefault(); sgEditId = a.dataset.sgEdit; renderSuggestions(); }); });
+    m.querySelectorAll("[data-sg-cancel]").forEach(function(b){ b.addEventListener("click", function(){ sgEditId = ""; renderSuggestions(); }); });
+    m.querySelectorAll("[data-sg-save]").forEach(function(b){
+      b.addEventListener("click", async function(){
+        var txt = m.querySelector("[data-sg-edit-text]").value.trim();
+        if(!txt){ toast("A suggestion can't be empty"); return; }
+        var r = await supabaseClient.from("suggestions").update({text:txt, edited_at:new Date().toISOString(), edited_by:getUser() || ""}).eq("id", b.dataset.sgSave).select("id");
+        if(r && r.error){ toast("Couldn't save: " + r.error.message); return; }
+        if(!r.data || !r.data.length){ toast("You can only edit your own suggestions"); return; }
+        sgEditId = ""; toast("Suggestion updated"); await loadSuggestions(); renderSuggestions();
       });
     });
     var tg = m.querySelector("#sgToggleDone");
@@ -6631,7 +6796,7 @@
       var vals = {};
       m.querySelectorAll("[data-qc]").forEach(function(el){ vals[el.dataset.qc] = el.value.trim(); });
       if(!vals.name){ toast("Enter a company name"); return; }
-      var existing = findCompanyByName(vals.name);
+      var existing = findCompanyByName(vals.name) || findDuplicateCompany(vals.name, "");
       if(existing){
         toast(existing.name + " is already in the Library — using it");
       } else {
@@ -6682,6 +6847,34 @@
     if(!techs.length) return '<div class="note-empty">No technicians yet.</div>';
     return techs.map(function(n){ return '<div class="inline-row" style="margin:4px 0;"><span style="flex:1;">' + esc(n) + '</span><button class="miniremove" data-tech-del="' + esc(n) + '">Remove</button></div>'; }).join("");
   }
+  function staffSettingsHtml(){
+    return '<p class="section-title" style="margin-top:20px;">Staff &amp; logins</p>' +
+      '<div class="note-empty">Current team: ' + teamMembers.map(esc).join(", ") + '. Add a person here to create their login and put them on the team list (assignments, @ tags, roles). Give them the temporary password and have them change it after signing in.</div>' +
+      (isOwner() ? '<div class="subcard" style="padding:10px;margin-top:8px;"><div class="inline-row">' +
+        '<div class="field" style="flex:1 1 170px;margin:0;"><label>Full name</label><input type="text" id="stf_name" placeholder="e.g. Jane Smith" autocomplete="off"></div>' +
+        '<div class="field" style="flex:1 1 140px;margin:0;"><label>Username</label><input type="text" id="stf_user" placeholder="e.g. jsmith" autocomplete="off"></div>' +
+        '<div class="field" style="flex:1 1 150px;margin:0;"><label>Temporary password (8+)</label><input type="text" id="stf_pw" autocomplete="off"></div>' +
+        '<button class="btn small primary" id="stf_add">+ Add staff</button></div>' +
+        '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;">Login is username@cablinginnovations.net (they just type the username).</div></div>'
+        : '<div class="note-empty">Only the site owner can add staff.</div>');
+  }
+  function staffSettingsWire(){
+    var b = document.getElementById("stf_add"); if(!b) return;
+    b.addEventListener("click", async function(){
+      var name = document.getElementById("stf_name").value.trim(), user = document.getElementById("stf_user").value.trim(), pw = document.getElementById("stf_pw").value;
+      if(!name || !user || pw.length < 8){ toast("Enter a full name, a username and a temporary password of 8+ characters"); return; }
+      b.disabled = true; b.textContent = "Adding…";
+      var res = await supabaseClient.functions.invoke("create-staff", {body:{fullName:name, username:user, password:pw}});
+      b.disabled = false; b.textContent = "+ Add staff";
+      var msg = (res.data && res.data.error) || (res.error && res.error.message) || "";
+      if(res.error && res.error.context && res.error.context.json){ try { var j = await res.error.context.json(); if(j && j.error) msg = j.error; } catch(e){} }
+      if(msg){ toast("Couldn't add staff — " + msg); return; }
+      try { teamMembers = await loadTeamMembersRemote(); } catch(e){ teamMembers.push(name); }
+      toast("Added " + name + " — login: " + (res.data && res.data.email));
+      document.getElementById("staffBox").innerHTML = staffSettingsHtml(); staffSettingsWire();
+      var rb = document.getElementById("rolesBox"); if(rb){ rb.innerHTML = rolesSettingsHtml(); rolesSettingsWire(); }
+    });
+  }
   async function renderSettingsExtra(){
     try { techs = await loadTechsRemote(); } catch(e){}
     try { await loadRolesRemote(); } catch(e){}
@@ -6696,6 +6889,8 @@
       '<div class="note-empty" style="margin-top:6px;">Files bigger than the project-wide Supabase upload limit will still be refused by Supabase — raise it under Storage → Settings in the Supabase dashboard.</div>';
     document.getElementById("settingsExtra").insertAdjacentHTML("beforeend", '<div id="rolesBox">' + rolesSettingsHtml() + '</div>');
     rolesSettingsWire();
+    document.getElementById("settingsExtra").insertAdjacentHTML("beforeend", '<div id="staffBox">' + staffSettingsHtml() + '</div>');
+    staffSettingsWire();
     document.getElementById("st_docMaxSave").addEventListener("click", async function(){
       var mb = Number(document.getElementById("st_docMax").value);
       if(!(mb > 0)){ toast("Enter a size in MB"); return; }
