@@ -67,7 +67,7 @@
   }
   .topbar-row1{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;}
   .topbar-row2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  .topbar-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:0 0 auto;}
+  .topbar-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:0 0 auto;margin-left:auto;}
   .topbar-right-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .brand-block{display:flex;flex-direction:column;gap:8px;flex:0 0 auto;}
   .brand{display:flex;align-items:baseline;gap:10px;}
@@ -863,7 +863,7 @@
     DEFAULT_ROLES: [{key:"billing",label:"Billing",people:["Hollie Treese"]},{key:"sales",label:"Sales",people:["Tyler Murray"]},{key:"estimates",label:"Estimates",people:["Chris Basham"]},{key:"ops",label:"Ops/Projects",people:["Hali McNair","Kerry Peace"]}],
     DEFAULT_ALERT_ROUTES: {estimateCompleteFallback:"sales"},
     // Shown small in the header so you can tell which version loaded. Bump with every delivery: whole number = big change, decimal = small change.
-    APP_VERSION: "5.0",
+    APP_VERSION: "5.1",
     CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
     CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
     CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
@@ -1831,7 +1831,7 @@
     var el = document.getElementById("todoCount");
     if(el) el.textContent = n ? "(" + n + ")" : "";
     var bd = document.getElementById("todoBadge");
-    if(bd) bd.textContent = n ? "✅" + n : "";
+    if(bd) bd.textContent = "✅ My To-Do List" + (n ? " (" + n + ")" : "");
   }
   function newId(){
     return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(ch){
