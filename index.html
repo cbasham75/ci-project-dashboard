@@ -596,6 +596,9 @@
     font-size:12.5px;border-radius:6px;padding:8px 10px;margin-bottom:12px;
   }
 
+  #updateBar{position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:300;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:13px;display:flex;gap:12px;align-items:center;max-width:92vw;}
+  #updateBar .btn{font-size:12px;}
+  .sameco-list{margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);}
   /* Signage boards + branding */
   .brand-logo{display:block;max-height:30px;max-width:180px;margin:0 0 2px;object-fit:contain;}
   .login-logo{display:block;max-height:64px;max-width:240px;margin:0 auto 8px;object-fit:contain;}
@@ -721,6 +724,8 @@
 <div class="calendar" id="projCalView" style="display:none;"></div>
 <div id="publicForm"></div>
 <div id="signageView" style="display:none;"></div>
+<div class="overlay" id="sameCoOverlay" style="z-index:75;"><div class="modal" id="sameCoModal" style="max-width:460px;"></div></div>
+<div id="updateBar" style="display:none;"></div>
 
 <!-- New Card Modal -->
 <div class="overlay" id="newCardOverlay">
@@ -915,6 +920,15 @@
     SG_SHIFT_MS: 120000,              // pixel-shift step (anti burn-in)
     SG_DIM_FROM: 22, SG_DIM_TO: 6,    // night dimming hours (when a screen has it on)
     BRAND_DEFAULT_NAME: "CI Project Bashboard",
+    // Similar company names (Library): abbreviations treated as the same word, and how close two names must be to ask "same company?"
+    CO_ABBREVIATIONS: {const:"construction", constr:"construction", cnstr:"construction", svc:"services", svcs:"services", serv:"services", intl:"international", mfg:"manufacturing", tn:"tennessee", bldg:"building", bldrs:"builders", mech:"mechanical", elec:"electric", assoc:"associates", grp:"group", sys:"systems", tech:"technologies", univ:"university", hosp:"hospital", med:"medical", ctr:"center", dept:"department", engr:"engineering", eng:"engineering"},
+    CO_SIMILAR_TYPO: 0.84,            // 0-1: how alike two names are (letter by letter) before we ask
+    CO_SIMILAR_WORDS: 0.6,            // 0-1: share of matching words before we ask
+    // Auto-update: the app looks for a newer index.html, saves everyone's work, then reloads.
+    UPDATE_CHECK_MS: 300000,          // look every 5 minutes (and when the tab comes back into view)
+    UPDATE_COUNTDOWN_S: 60,           // required updates: seconds before the page reloads
+    UPDATE_LATER_MS: 1800000,         // optional updates: how long "Later" hides the bar
+    APP_UPDATE_REQUIRED: false,       // set to the word true in a big release to make signed-in users reload after the countdown (the OLD page reads this from the NEW file)
     COLUMN_SORTS: [["manual","Manual order"],["status","Status"],["due","Due date"],["name","Name A–Z"],["value","Value (high to low)"],["newest","Newest first"],["oldest","Oldest first"],["progress","% complete"]],
     WO_ALLOT_PCT: 90,                   // work order: allotted labor hours = this % of counted estimate labor hours
     WO_EXCLUDE_SECTIONS: ["general & project costs"],   // labor in these estimate sections is not counted
@@ -944,7 +958,7 @@
     DEFAULT_ROLES: [{key:"billing",label:"Billing",people:["Hollie Treese"]},{key:"sales",label:"Sales",people:["Tyler Murray"]},{key:"estimates",label:"Estimates",people:["Chris Basham"]},{key:"ops",label:"Ops/Projects",people:["Hali McNair","Kerry Peace"]}],
     DEFAULT_ALERT_ROUTES: {estimateCompleteFallback:"sales"},
     // Shown small in the header so you can tell which version loaded. Bump with every delivery: whole number = big change, decimal = small change.
-    APP_VERSION: "7.1",
+    APP_VERSION: "7.2",
     CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
     CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
     CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
@@ -2772,6 +2786,47 @@
     var k = normCoName(name); if(!k) return null;
     return libraryCompanies.find(function(c){ return c.id !== excludeId && normCoName(c.name) === k; }) || null;
   }
+  function coTokens(n){
+    return normCoName(n).split(" ").filter(Boolean).map(function(t){ return CONFIG.CO_ABBREVIATIONS[t] || t; });
+  }
+  function levRatio(a, b){
+    if(a === b) return 1; var m = a.length, n = b.length; if(!m || !n) return 0;
+    var prev = [], cur = [], i, j;
+    for(j = 0; j <= n; j++) prev[j] = j;
+    for(i = 1; i <= m; i++){ cur = [i]; for(j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1)); prev = cur; }
+    return 1 - prev[n] / Math.max(m, n);
+  }
+  function coSimilar(a, b){
+    var ta = coTokens(a), tb = coTokens(b); if(!ta.length || !tb.length) return false;
+    var ja = ta.join(""), jb = tb.join("");
+    if(ja === jb) return true;
+    var small = ta.length <= tb.length ? ta : tb, big = ta.length <= tb.length ? tb : ta;
+    if(small.join("").length >= 4 && small.every(function(t){ return big.indexOf(t) !== -1; })) return true;   // "Turner" inside "Turner Construction"
+    var common = small.filter(function(t){ return big.indexOf(t) !== -1; }).length, union = ta.length + tb.length - common;
+    if(union && common / union >= CONFIG.CO_SIMILAR_WORDS) return true;
+    return Math.min(ja.length, jb.length) >= 4 && levRatio(ja, jb) >= CONFIG.CO_SIMILAR_TYPO;                  // typos
+  }
+  // Companies whose name is close to (but not an exact match for) this one.
+  function findSimilarCompanies(name, excludeId){
+    if(!normCoName(name)) return [];
+    return libraryCompanies.filter(function(c){ return c.id !== excludeId && c.name && coSimilar(name, c.name); }).slice(0, 3);
+  }
+  // Asks "Is this the same as X?" Yes -> onSame(company); No -> onNew(); Close -> onCancel().
+  function askSameCompany(name, matches, onSame, onNew, onCancel){
+    var m = document.getElementById("sameCoModal"), done = false;
+    function finish(fn, arg){ if(done) return; done = true; closeOverlay("sameCoOverlay"); if(fn) fn(arg); }
+    m.innerHTML = '<div class="modal-head"><div><h2>Is this the same company?</h2><div class="sub">“' + esc(name) + '” looks like a company already in the Library.</div></div></div>' +
+      '<div class="modal-body">' + matches.map(function(c, i){
+        var bits = [c.city && (c.city + (c.state ? ", " + c.state : "")), c.mainPhone].filter(Boolean).join(" · ");
+        return '<div class="sameco-list"><div style="display:flex;gap:10px;align-items:center;"><div style="flex:1;"><strong>' + esc(c.name) + '</strong>' + (bits ? '<div style="font-size:12px;color:var(--ink-soft);">' + esc(bits) + '</div>' : '') + '</div>' +
+          '<button class="btn small primary" data-sameyes="' + i + '">Yes, use this one</button></div></div>';
+      }).join("") + '</div>' +
+      '<div class="modal-foot"><button class="btn ghost" id="sameco_cancel">Cancel</button><button class="btn" id="sameco_new">No, add “' + esc(name) + '” as a new company</button></div>';
+    m.querySelectorAll("[data-sameyes]").forEach(function(b){ b.addEventListener("click", function(){ finish(onSame, matches[Number(b.dataset.sameyes)]); }); });
+    m.querySelector("#sameco_new").addEventListener("click", function(){ finish(onNew); });
+    m.querySelector("#sameco_cancel").addEventListener("click", function(){ finish(onCancel); });
+    openOverlay("sameCoOverlay");
+  }
   function findCompanyByName(name){
     if(!name) return null;
     return libraryCompanies.find(function(c){ return c.name === name; }) || null;
@@ -2912,12 +2967,21 @@
           }
           return;
         }
-        saveCompanyRemote(sel).then(function(res){
-          if(res && res.error){ toast("Couldn't save — " + res.error.message); return; }
-          delete libUnsavedIds[sel.id];
-          toast("Saved " + sel.name);
-          renderLibrary();
-        });
+        function doSave(){
+          saveCompanyRemote(sel).then(function(res){
+            if(res && res.error){ toast("Couldn't save — " + res.error.message); return; }
+            delete libUnsavedIds[sel.id];
+            toast("Saved " + sel.name);
+            renderLibrary();
+          });
+        }
+        var sims = libUnsavedIds[sel.id] ? findSimilarCompanies(sel.name, sel.id) : [];
+        if(!sims.length){ doSave(); return; }
+        askSameCompany(sel.name, sims, function(co){
+          libraryCompanies.splice(libraryCompanies.indexOf(sel), 1); delete libUnsavedIds[sel.id];
+          libSelectedId = co.id; irReset(); renderLibrary();
+          toast("Using the existing “" + co.name + "”");
+        }, doSave, null);
       });
       var dl = el.querySelector("#libDeleteBtn");
       if(dl) dl.addEventListener("click", function(){
@@ -6911,19 +6975,21 @@
       m.querySelectorAll("[data-qc]").forEach(function(el){ vals[el.dataset.qc] = el.value.trim(); });
       if(!vals.name){ toast("Enter a company name"); return; }
       var existing = findCompanyByName(vals.name) || findDuplicateCompany(vals.name, "");
-      if(existing){
-        toast(existing.name + " is already in the Library — using it");
-      } else {
-        existing = blankCompany();
-        Object.assign(existing, vals);
-        libraryCompanies.push(existing);
-        saveCompanyRemote(existing).then(function(res){
+      function finishUse(co){ close(); if(quickCompanyCb) quickCompanyCb(co.name); }
+      function addNew(){
+        var co = blankCompany();
+        Object.assign(co, vals);
+        libraryCompanies.push(co);
+        saveCompanyRemote(co).then(function(res){
           if(res && res.error) toast("Couldn't save to Library: " + res.error.message);
         });
-        toast("Added " + existing.name + " to the Library");
+        toast("Added " + co.name + " to the Library");
+        finishUse(co);
       }
-      close();
-      if(quickCompanyCb) quickCompanyCb(existing.name);
+      if(existing){ toast(existing.name + " is already in the Library — using it"); finishUse(existing); return; }
+      var sims = findSimilarCompanies(vals.name, "");
+      if(!sims.length){ addNew(); return; }
+      askSameCompany(vals.name, sims, function(co){ toast("Using the existing “" + co.name + "”"); finishUse(co); }, addNew, null);
     });
     openOverlay("quickCompanyOverlay");
     var first = m.querySelector('[data-qc="name"]'); if(first) first.focus();
@@ -7701,6 +7767,76 @@
       toast("Screen saved" + (code ? " — code updated" : "")); sgSettingsRender();
     }); });
   }
+
+
+  /* ---------------- Auto-update: save everyone's work, then load the new version ---------------- */
+  var updInfo = null, updCountdown = null, updBusy = false, updLaterUntil = 0;
+  function verParts(v){ return String(v || "").split(".").map(function(x){ return parseInt(x, 10) || 0; }); }
+  function verNewer(a, b){
+    var x = verParts(a), y = verParts(b);
+    for(var i = 0; i < Math.max(x.length, y.length); i++){ var d = (x[i] || 0) - (y[i] || 0); if(d) return d > 0; }
+    return false;
+  }
+  function updateBlockers(){
+    var why = [];
+    if(uploadJobs.some(function(j){ return j.state === "uploading" || j.state === "queued"; })) why.push("an upload is still running");
+    ["newCardOverlay", "serviceOverlay", "quickCompanyOverlay", "changePasswordOverlay", "sameCoOverlay"].forEach(function(id){ var el = document.getElementById(id); if(el && el.classList.contains("open")) why.push("a window is open with unsaved entries (save or close it)"); });
+    if(Object.keys(libUnsavedIds).length) why.push("a new Library company isn't saved yet");
+    if(todoEditingId) why.push("a to-do is being edited");
+    if(currentSession && cardSyncOn && cards.some(function(c){ return cardSnap[c.id] !== snapOf(c); })) why.push("changes haven't finished saving (check your connection)");
+    return why.filter(function(w, i){ return why.indexOf(w) === i; });
+  }
+  async function applyUpdate(){
+    if(updBusy) return; updBusy = true;
+    var bar = document.getElementById("updateBar");
+    try { if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch(e){}
+    await new Promise(function(r){ setTimeout(r, 350); });
+    clearTimeout(estSaveTimer);
+    if(currentSession){ saveCards(); try { await saveChain; } catch(e){} }
+    var why = updateBlockers();
+    if(why.length){
+      bar.innerHTML = '<span>⏳ Waiting to update — ' + esc(why[0]) + '.</span><button class="btn small" id="updRetry">Try again</button>';
+      bar.style.display = "flex"; updBusy = false;
+      bar.querySelector("#updRetry").addEventListener("click", applyUpdate);
+      setTimeout(function(){ if(updInfo && !updBusy && updInfo.required) applyUpdate(); }, 10000);
+      return;
+    }
+    bar.innerHTML = '<span>Updating…</span>'; bar.style.display = "flex";
+    location.reload();
+  }
+  function showUpdateBar(){
+    if(!updInfo || updBusy) return;
+    var bar = document.getElementById("updateBar"), signage = document.getElementById("signageView").style.display === "block";
+    if(signage || !currentSession){   // nothing of anyone's to save (but don't interrupt someone typing a login)
+      var lu = document.getElementById("loginUsername"), lp = document.getElementById("loginPassword");
+      if(!signage && ((lu && lu.value) || (lp && lp.value))) return;
+      applyUpdate(); return;
+    }
+    if(updInfo.required){
+      if(updCountdown) return;
+      var left = CONFIG.UPDATE_COUNTDOWN_S;
+      function paint(){ bar.innerHTML = '<span>🔄 Version ' + esc(updInfo.version) + ' is ready. Your work is saved first, then this page reloads in <b>' + left + '</b> s.</span><button class="btn small primary" id="updNow">Update now</button>'; bar.style.display = "flex"; bar.querySelector("#updNow").addEventListener("click", function(){ clearInterval(updCountdown); applyUpdate(); }); }
+      paint();
+      updCountdown = setInterval(function(){ left--; if(left <= 0){ clearInterval(updCountdown); applyUpdate(); } else if(!updBusy) paint(); }, 1000);
+    } else if(Date.now() >= updLaterUntil){
+      bar.innerHTML = '<span>🔄 Version ' + esc(updInfo.version) + ' is ready. Your work is saved automatically when you update.</span><button class="btn small primary" id="updNow">Update now</button><button class="btn small" id="updLater">Later</button>';
+      bar.style.display = "flex";
+      bar.querySelector("#updNow").addEventListener("click", applyUpdate);
+      bar.querySelector("#updLater").addEventListener("click", function(){ updLaterUntil = Date.now() + CONFIG.UPDATE_LATER_MS; bar.style.display = "none"; });
+    }
+  }
+  async function checkForUpdate(){
+    if(updBusy) return;
+    if(updInfo){ showUpdateBar(); return; }
+    try {
+      var r = await fetch(location.pathname + "?_=" + Date.now(), {cache:"no-store"}); if(!r.ok) return;
+      var t = await r.text(), m = t.match(/APP_VERSION:\s*"([^"]+)"/); if(!m || !verNewer(m[1], CONFIG.APP_VERSION)) return;
+      updInfo = {version:m[1], required:/APP_UPDATE_REQUIRED:\s*true/.test(t)};
+      showUpdateBar();
+    } catch(e){}
+  }
+  setInterval(checkForUpdate, CONFIG.UPDATE_CHECK_MS);
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden) checkForUpdate(); });
 
   /* ---------------- Signage page (?signage) — no login, code-protected, summary data only ---------------- */
   function signageInit(preScreen){
