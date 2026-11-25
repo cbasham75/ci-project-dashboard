@@ -254,6 +254,7 @@
   .wo-page h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid #111;padding-bottom:2px;margin:10px 0 5px;}
   .wo-page table{width:100%;border-collapse:collapse;}
   .wo-page td,.wo-page th{border:1px solid #888;padding:3px 6px;vertical-align:top;text-align:left;}
+  .wo-page td,.ho-kv{overflow-wrap:anywhere;}
   .wo-page th{background:#eee;font-size:10px;white-space:nowrap;width:1%;}
   .wo-page .wo-box{border:1px solid #888;min-height:90px;padding:6px;white-space:pre-wrap;}
   .wo-page .wo-line{border-bottom:1px solid #111;height:26px;}
@@ -421,6 +422,12 @@
   .est-tbl td{padding:3px 4px;vertical-align:middle;}
   .est-tbl td.num,.est-tbl th.num{text-align:right;font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
   .est-tbl input,.est-tbl select{width:100%;}
+  .est-grip{cursor:grab;color:var(--ink-soft);font-size:16px;line-height:1;user-select:none;padding:2px 4px;display:inline-block;}
+  .est-grip:active{cursor:grabbing;}
+  tr.est-dragging{opacity:.4;}
+  tr.est-drop-before td{box-shadow:inset 0 2px 0 var(--blue);}
+  tr.est-drop-after td{box-shadow:inset 0 -2px 0 var(--blue);}
+  .est-sub.est-drop-sub{outline:2px dashed var(--blue);outline-offset:-2px;}
   .est-mv{border:none;background:none;cursor:pointer;color:var(--ink-soft);font-size:10px;padding:1px 3px;}
   .est-foot{display:flex;gap:22px;flex-wrap:wrap;align-items:center;padding:12px 20px;border-top:2px solid var(--line);background:var(--paper-raised);font-size:12px;color:var(--ink-soft);}
   .est-foot strong{display:block;font-size:15px;color:var(--ink);font-family:'IBM Plex Mono',monospace;}
@@ -666,15 +673,16 @@
         <div class="view-toggle" id="viewToggle" title="Switch between the card board and the company dashboard"><button type="button" data-view="cards" class="on">CARDS</button><button type="button" data-view="dash">DASH</button></div>
         <div class="user-field" id="userField" style="display:none;">
           <div class="user-menu" id="userMenu">
-            <button type="button" class="btn ghost small" id="userMenuBtn" aria-haspopup="true">Signed in as <strong id="signedInName" style="color:var(--ink);"></strong> <span id="todoBadge" class="todo-badge"></span> ▾</button>
+            <span style="white-space:nowrap;">Signed in as <strong id="signedInName" style="color:var(--ink);"></strong></span>
+            <button type="button" class="btn ghost small" id="userMenuBtn" aria-haspopup="true">Options ▾</button>
             <div class="user-pop" id="userPop">
-              <button type="button" id="todoBtn">✅ My To-Do <span id="todoCount" style="font-weight:700;"></span></button>
               <button type="button" id="changePasswordBtn">🔑 Change password</button>
               <button type="button" id="logoutBtn">Log out</button>
             </div>
           </div>
           <span id="appVer" style="font-size:10px;color:var(--ink-soft);opacity:.7;margin-left:6px;" title="App version"></span>
         </div>
+        <button type="button" class="btn small todo-main" id="todoBtn" style="display:none;" title="Your personal to-do list">✅ My To-Do List <span id="todoCount" class="todo-badge"></span></button>
         </div>
         <div class="bell-wrap">
           <button class="bell" id="bellBtn" title="Alerts"><span class="ico">🔔</span><span class="dot" id="alertDot" style="display:none;">0</span></button>
@@ -936,7 +944,7 @@
     DEFAULT_ROLES: [{key:"billing",label:"Billing",people:["Hollie Treese"]},{key:"sales",label:"Sales",people:["Tyler Murray"]},{key:"estimates",label:"Estimates",people:["Chris Basham"]},{key:"ops",label:"Ops/Projects",people:["Hali McNair","Kerry Peace"]}],
     DEFAULT_ALERT_ROUTES: {estimateCompleteFallback:"sales"},
     // Shown small in the header so you can tell which version loaded. Bump with every delivery: whole number = big change, decimal = small change.
-    APP_VERSION: "7.0",
+    APP_VERSION: "7.1",
     CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
     CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
     CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
@@ -1903,8 +1911,6 @@
     var n = todos.filter(function(t){ return !t.done; }).length;
     var el = document.getElementById("todoCount");
     if(el) el.textContent = n ? "(" + n + ")" : "";
-    var bd = document.getElementById("todoBadge");
-    if(bd) bd.textContent = "✅ My To-Do List" + (n ? " (" + n + ")" : "");
   }
   function newId(){
     return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(ch){
@@ -5449,7 +5455,7 @@
   function itemRowHtml(it, e){
     var n = estItemNums(it, e), lab = n.lab, defMk = lab ? e.laborMarkup : e.materialMarkup;
     return '<tr data-iid="' + it.id + '">' +
-      '<td style="width:38px;white-space:nowrap;"><button class="est-mv" data-act="itemup" title="Move up">▲</button><button class="est-mv" data-act="itemdn" title="Move down">▼</button></td>' +
+      '<td style="width:26px;text-align:center;"><span class="est-grip" title="Drag to reorder, or drop onto another subsection">⠿</span></td>' +
       '<td style="width:96px;"><select class="compact-input" data-f="type"><option value="material"' + (lab ? '' : ' selected') + '>Material</option><option value="labor"' + (lab ? ' selected' : '') + '>Labor</option></select></td>' +
       '<td><input class="compact-input" type="text" data-f="description" value="' + esc(it.description || "") + '" placeholder="Description"></td>' +
       '<td style="width:84px;"><input class="compact-input" type="number" step="any" data-f="qty" value="' + esc(String(it.qty)) + '"></td>' +
@@ -5625,11 +5631,46 @@
         r.sub.items.push(it); estFocusId = it.id;
       }
       else if(act === "delitem") r.sub.items.splice(r.sub.items.indexOf(r.item), 1);
-      else if(act === "itemup") moveIn(r.sub.items, r.item, -1);
-      else if(act === "itemdn") moveIn(r.sub.items, r.item, 1);
       else changed = false;
       if(changed) estSaveSoon();
       renderEstimate();
+    });
+    // Drag a line by its grip: reorder within a subsection, or drop it on another subsection (onto a line = before/after it; onto the box = at the end).
+    var dragIid = "";
+    function dragClear(){ host.querySelectorAll(".est-drop-before,.est-drop-after,.est-drop-sub,.est-dragging").forEach(function(x){ x.classList.remove("est-drop-before", "est-drop-after", "est-drop-sub", "est-dragging"); }); }
+    function dragReset(){ dragClear(); host.querySelectorAll("tr[draggable]").forEach(function(x){ x.removeAttribute("draggable"); }); dragIid = ""; }
+    host.addEventListener("mousedown", function(ev){ var g = ev.target.closest(".est-grip"); if(g){ var tr = g.closest("tr"); if(tr) tr.setAttribute("draggable", "true"); } });
+    host.addEventListener("mouseup", function(){ if(!dragIid) host.querySelectorAll("tr[draggable]").forEach(function(x){ x.removeAttribute("draggable"); }); });
+    host.addEventListener("dragstart", function(ev){
+      var tr = ev.target.closest && ev.target.closest("tr[data-iid]");
+      if(!tr || tr.getAttribute("draggable") !== "true"){ return; }
+      dragIid = tr.dataset.iid; ev.dataTransfer.effectAllowed = "move"; try { ev.dataTransfer.setData("text/plain", dragIid); } catch(x){}
+      tr.classList.add("est-dragging");
+    });
+    host.addEventListener("dragend", dragReset);
+    host.addEventListener("dragover", function(ev){
+      if(!dragIid) return;
+      var tr = ev.target.closest("tr[data-iid]"), sub = ev.target.closest(".est-sub"); if(!sub) return;
+      ev.preventDefault(); ev.dataTransfer.dropEffect = "move";
+      dragClear(); var src = host.querySelector('tr[data-iid="' + dragIid + '"]'); if(src) src.classList.add("est-dragging");
+      if(tr && tr.dataset.iid !== dragIid){ var rc = tr.getBoundingClientRect(); tr.classList.add(ev.clientY > rc.top + rc.height / 2 ? "est-drop-after" : "est-drop-before"); }
+      else if(!tr) sub.classList.add("est-drop-sub");
+    });
+    host.addEventListener("drop", function(ev){
+      if(!dragIid) return;
+      var sub = ev.target.closest(".est-sub"); if(!sub){ dragReset(); return; }
+      ev.preventDefault();
+      var v = estVer(), e = ensureEstimate(v), tr = ev.target.closest("tr[data-iid]");
+      var after = false; if(tr){ var rc = tr.getBoundingClientRect(); after = ev.clientY > rc.top + rc.height / 2; }
+      var tgt = estFind(tr || sub), srcSub = null, item = null, id = dragIid;
+      e.sections.forEach(function(sc){ sc.subsections.forEach(function(u){ var it = u.items.find(function(x){ return x.id === id; }); if(it){ srcSub = u; item = it; } }); });
+      dragReset();
+      if(!item || !tgt.sub || (tr && tgt.item === item)) return;
+      var from = srcSub.items.indexOf(item); srcSub.items.splice(from, 1);
+      var at = tgt.sub.items.length;
+      if(tr && tgt.item){ at = tgt.sub.items.indexOf(tgt.item) + (after ? 1 : 0); }
+      tgt.sub.items.splice(at, 0, item);
+      estSaveSoon(); renderEstimate();
     });
     function onField(ev){
       var el = ev.target.closest("[data-f]"); if(!el || !estVer()) return;
@@ -7312,7 +7353,7 @@
     var meta = (session && session.user && session.user.user_metadata) || {};
     currentUserName = meta.full_name || ((session.user.email || "").split("@")[0]);
     document.getElementById("signedInName").textContent = currentUserName;
-    document.getElementById("userField").style.display = "flex";
+    document.getElementById("userField").style.display = "flex"; document.getElementById("todoBtn").style.display = "inline-flex";
     recordActivity();
     showApp();
     initApp();
@@ -7327,7 +7368,7 @@
     cardSnap = {}; cardVer = {}; serverIds = []; cardSyncOn = false;
     if(dashMode) setView("cards", false);
     alerts = [];
-    document.getElementById("userField").style.display = "none";
+    document.getElementById("userField").style.display = "none"; document.getElementById("todoBtn").style.display = "none";
     showLogin();
   }
   function signOutNow(message){
