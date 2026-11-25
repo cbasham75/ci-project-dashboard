@@ -82,6 +82,34 @@
   .est-sec.off .est-sec-head .est-title,.est-sec.off .est-sec-head .mono{opacity:.5;text-decoration:line-through;}
   .est-sec.off{opacity:.8;}
   .alt-tag{font-size:11px;font-weight:700;color:#8a5a00;background:#fff3bf;border-radius:4px;padding:2px 6px;}
+  .view-toggle{display:inline-flex;border-radius:999px;overflow:hidden;border:1px solid var(--line);}
+  .view-toggle button{border:0;padding:6px 16px;font-size:12.5px;font-weight:700;cursor:pointer;background:#8a8f98;color:#fff;letter-spacing:.3px;}
+  .view-toggle button.on{background:#c62828;color:#fff;}
+  .user-col{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+  body.dash-mode main:not(#dashView), body.dash-mode .topbar-row2, body.dash-mode .header-search, body.dash-mode .brand-block > div:last-child{display:none !important;}
+  #dashView{display:none;position:fixed;top:var(--topbar-h,120px);left:0;right:0;bottom:0;overflow:auto;padding:18px 22px;background:var(--paper);}
+  body.dash-mode #dashView{display:block;}
+  .dash-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .dash-head h2{margin:0;font-size:22px;flex:1 1 auto;}
+  .dash-seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .dash-seg button{border:0;background:var(--paper-raised);color:var(--ink);padding:6px 12px;font-size:12.5px;cursor:pointer;}
+  .dash-seg button.on{background:var(--blue);color:#fff;}
+  .gauges{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;}
+  .gauge{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:center;}
+  .gauge .g-label{font-size:13px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.5px;}
+  .gauge svg{width:100%;max-width:260px;height:auto;}
+  .gauge .g-val{font-size:30px;font-weight:800;line-height:1.1;margin-top:-6px;}
+  .gauge .g-sub{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+  .gauge .g-state{font-size:12px;font-weight:700;margin-top:4px;}
+  .live-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-top:14px;}
+  .live-tile{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:12px 14px;}
+  .live-tile .n{font-size:34px;font-weight:800;line-height:1;}
+  .live-tile .l{font-size:12px;color:var(--ink-soft);margin-top:4px;text-transform:uppercase;letter-spacing:.5px;}
+  .wins{margin-top:14px;background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:12px 14px;}
+  .wins h3{margin:0 0 8px;font-size:14px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.5px;}
+  .win-row{display:flex;gap:12px;padding:5px 0;border-top:1px solid var(--line);font-size:14px;}
+  .win-row:first-of-type{border-top:0;}
+  .win-row .wn{flex:1 1 auto;font-weight:600;} .win-row .wa{font-weight:700;} .win-row .wd{color:var(--ink-soft);}
   .alert-item.go{cursor:pointer;}
   .alert-item.go:hover{background:rgba(44,82,130,.10);}
   .header-search input{padding-right:30px !important;}
@@ -561,6 +589,29 @@
     font-size:12.5px;border-radius:6px;padding:8px 10px;margin-bottom:12px;
   }
 
+  /* Signage boards + branding */
+  .brand-logo{display:block;max-height:30px;max-width:180px;margin:0 0 2px;object-fit:contain;}
+  .login-logo{display:block;max-height:64px;max-width:240px;margin:0 auto 8px;object-fit:contain;}
+  .brand .mark{display:inline-block;}
+  #signageView{position:fixed;inset:0;overflow:hidden;background:var(--paper);color:var(--ink);z-index:200;}
+  #signageView .sg-login{max-width:340px;margin:12vh auto 0;background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:26px;}
+  #signageView .sg-stage{position:absolute;inset:0;padding:2.2vh 2.4vw;transition:transform 2.5s ease, filter 1s;display:flex;flex-direction:column;gap:2vh;}
+  .sg-head{display:flex;flex-direction:column;align-items:flex-start;}
+  .sg-head img{max-height:7vh;max-width:30vw;object-fit:contain;margin-bottom:.6vh;}
+  .sg-name{font-size:clamp(20px,3.2vw,52px);font-weight:800;line-height:1.1;}
+  .sg-sub{font-size:clamp(13px,1.5vw,26px);color:var(--ink-soft);margin-top:.4vh;}
+  .sg-stage .gauges{grid-template-columns:repeat(auto-fit,minmax(15vw,1fr));flex:0 0 auto;}
+  .sg-stage .gauge .g-label{font-size:clamp(11px,1.1vw,20px);}
+  .sg-stage .gauge .g-val{font-size:clamp(24px,3.4vw,60px);}
+  .sg-stage .gauge .g-sub{font-size:clamp(11px,1vw,18px);}
+  .sg-stage .gauge .g-state{font-size:clamp(11px,1vw,18px);}
+  .sg-stage .live-tile .n{font-size:clamp(26px,3.6vw,64px);}
+  .sg-stage .live-tile .l{font-size:clamp(11px,1.1vw,20px);}
+  .sg-stage .wins{flex:1 1 auto;overflow:hidden;}
+  .sg-stage .win-row{font-size:clamp(12px,1.4vw,24px);}
+  .sg-foot{font-size:clamp(10px,.9vw,15px);color:var(--ink-soft);text-align:right;}
+  #sgCtl{position:fixed;top:8px;right:8px;display:flex;gap:6px;opacity:0;transition:opacity .4s;z-index:210;}
+  #sgCtl.show{opacity:1;}
   .toast-wrap{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center;}
   .toast{background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:7px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.2);}
 
@@ -611,6 +662,8 @@
     </div>
     <div class="topbar-right">
       <div class="topbar-right-top">
+        <div class="user-col">
+        <div class="view-toggle" id="viewToggle" title="Switch between the card board and the company dashboard"><button type="button" data-view="cards" class="on">CARDS</button><button type="button" data-view="dash">DASH</button></div>
         <div class="user-field" id="userField" style="display:none;">
           <div class="user-menu" id="userMenu">
             <button type="button" class="btn ghost small" id="userMenuBtn" aria-haspopup="true">Signed in as <strong id="signedInName" style="color:var(--ink);"></strong> <span id="todoBadge" class="todo-badge"></span> ▾</button>
@@ -621,6 +674,7 @@
             </div>
           </div>
           <span id="appVer" style="font-size:10px;color:var(--ink-soft);opacity:.7;margin-left:6px;" title="App version"></span>
+        </div>
         </div>
         <div class="bell-wrap">
           <button class="bell" id="bellBtn" title="Alerts"><span class="ico">🔔</span><span class="dot" id="alertDot" style="display:none;">0</span></button>
@@ -648,6 +702,8 @@
 </header>
 
 <main class="board" id="board"></main>
+<main id="dashView"></main>
+<div class="overlay" id="dashGoalsOverlay" style="z-index:65;"><div class="modal" id="dashGoalsModal"></div></div>
 <div class="calendar" id="calendarView" style="display:none;"></div>
 <div class="calendar" id="archiveView" style="display:none;"></div>
 <div class="calendar" id="reportsView" style="display:none;"></div>
@@ -656,6 +712,7 @@
 <div class="calendar" id="catalogView" style="display:none;"></div>
 <div class="calendar" id="projCalView" style="display:none;"></div>
 <div id="publicForm"></div>
+<div id="signageView" style="display:none;"></div>
 
 <!-- New Card Modal -->
 <div class="overlay" id="newCardOverlay">
@@ -834,6 +891,22 @@
   /* ---------------- CONFIG: labels, lists and site-specific values live here ---------------- */
   var CONFIG = {
     // Site owner(s): can manage the whole suggestion list. (Server-side policy lives in the suggestions table.)
+    DASH_REFRESH_MS: 30000,
+    DASH_GAUGES: [
+      {key:"revenue",  label:"Revenue booked",   kind:"money", goal:true},
+      {key:"invoiced", label:"Invoiced",         kind:"money", goal:true},
+      {key:"jobs",     label:"Jobs won",         kind:"count", goal:true},
+      {key:"estout",   label:"Estimates out",    kind:"money", goal:true},
+      {key:"winrate",  label:"Win rate",         kind:"pct",   goal:true}
+    ],
+    DASH_COLORS: {good:"#2e9e5b", warn:"#d99a1e", bad:"#c62828", none:"#7a8794"},
+    // Signage boards (no-login wall screens). Each screen picks from these lists in Settings -> Dashboards.
+    SG_TILES: [["openProjects","Open projects"],["openCOs","Open change orders"],["estimating","Estimating now"],["estCount","Estimates out (this period)"]],
+    SG_PERIODS: [["month","Month"],["quarter","Quarter"],["year","Year"]],
+    SG_DEFAULT: {gauges:["revenue","invoiced","jobs","estout","winrate"], tiles:["openProjects","openCOs","estimating","estCount"], periods:["month"], rotateSec:20, showWins:true, dark:true, shift:true, dim:false},
+    SG_SHIFT_MS: 120000,              // pixel-shift step (anti burn-in)
+    SG_DIM_FROM: 22, SG_DIM_TO: 6,    // night dimming hours (when a screen has it on)
+    BRAND_DEFAULT_NAME: "CI Project Bashboard",
     COLUMN_SORTS: [["manual","Manual order"],["status","Status"],["due","Due date"],["name","Name A–Z"],["value","Value (high to low)"],["newest","Newest first"],["oldest","Oldest first"],["progress","% complete"]],
     WO_ALLOT_PCT: 90,                   // work order: allotted labor hours = this % of counted estimate labor hours
     WO_EXCLUDE_SECTIONS: ["general & project costs"],   // labor in these estimate sections is not counted
@@ -863,7 +936,7 @@
     DEFAULT_ROLES: [{key:"billing",label:"Billing",people:["Hollie Treese"]},{key:"sales",label:"Sales",people:["Tyler Murray"]},{key:"estimates",label:"Estimates",people:["Chris Basham"]},{key:"ops",label:"Ops/Projects",people:["Hali McNair","Kerry Peace"]}],
     DEFAULT_ALERT_ROUTES: {estimateCompleteFallback:"sales"},
     // Shown small in the header so you can tell which version loaded. Bump with every delivery: whole number = big change, decimal = small change.
-    APP_VERSION: "5.1",
+    APP_VERSION: "7.0",
     CALENDAR_DEFAULT_MODE: "rolling",   // "rolling" (weeks) or "month"
     CAL_WEEKS_BEFORE: 1,                // rolling view: weeks shown before the current week
     CAL_WEEKS_AFTER: 3,                 // rolling view: weeks shown after the current week
@@ -6891,6 +6964,11 @@
     rolesSettingsWire();
     document.getElementById("settingsExtra").insertAdjacentHTML("beforeend", '<div id="staffBox">' + staffSettingsHtml() + '</div>');
     staffSettingsWire();
+    if(isOwner()){
+      document.getElementById("settingsExtra").insertAdjacentHTML("beforeend", '<div id="brandBox">' + brandSettingsHtml() + '</div><div id="sgBox"></div>');
+      brandSettingsWire();
+      sgSettingsRender();
+    }
     document.getElementById("st_docMaxSave").addEventListener("click", async function(){
       var mb = Number(document.getElementById("st_docMax").value);
       if(!(mb > 0)){ toast("Enter a size in MB"); return; }
@@ -7016,11 +7094,201 @@
     document.getElementById("archiveView").style.display = "none";
     document.getElementById("loginPassword").value = "";
   }
+  /* ---------------- Company Dashboard (Phase 1) ---------------- */
+  var dashPublic = false, dashMode = false, dashPeriod = "month", dashOffset = 0, dashGoals = {}, dashTimer = null;
+  var DASH_VIEW_KEY = "ci_view_v1";
+  var DASH_WON_KEYS = ["project_created","project_in_progress","project_complete","final_invoiced","project_closed"];
+  var DASH_SUB_KEYS = ["estimate_submitted"].concat(DASH_WON_KEYS);
+  function dashRange(period, offset){
+    var n = new Date(), y = n.getFullYear(), m = n.getMonth();
+    if(period === "month") return {start:new Date(y, m + offset, 1), end:new Date(y, m + offset + 1, 1)};
+    if(period === "quarter"){ var q = Math.floor(m / 3) + offset; return {start:new Date(y, q * 3, 1), end:new Date(y, q * 3 + 3, 1)}; }
+    return {start:new Date(y + offset, 0, 1), end:new Date(y + offset + 1, 0, 1)};
+  }
+  function dashLabel(r, period){
+    var d = r.start;
+    if(period === "month") return d.toLocaleString(undefined, {month:"long", year:"numeric"});
+    if(period === "quarter") return "Q" + (Math.floor(d.getMonth() / 3) + 1) + " " + d.getFullYear();
+    return String(d.getFullYear());
+  }
+  function dashFirst(c, keys){
+    var h = (c.history || []).find(function(x){ return keys.indexOf(x.status) !== -1 && x.at; });
+    return h ? new Date(h.at) : null;
+  }
+  function dashIn(d, r){ return !!d && d >= r.start && d < r.end; }
+  // Event source: one list per event type. Signed-in view builds it from the cards; signage boards build it from the server summary.
+  function dashSrcFromCards(){
+    var src = {wins:[], inv:[], sub:[], lost:[], live:{openProjects:0, openCOs:0, estimating:0}};
+    cards.forEach(function(c){
+      var w = dashFirst(c, DASH_WON_KEYS);
+      if(w) src.wins.push({name:c.projectName || c.id, amount:Number(c.contractAmount) || 0, at:w, by:c.salesperson || ""});
+      var iv = dashFirst(c, ["final_invoiced"]);
+      if(iv) src.inv.push({at:iv, amount:totalValue(c)});
+      var sb = dashFirst(c, DASH_SUB_KEYS);
+      if(sb) src.sub.push({at:sb, amount:estimateTotal(c)});
+      if(c.hla && c.hla.status === "lost"){
+        var ld = c.hla.savedAt ? new Date(c.hla.savedAt) : (((c.history || []).slice(-1)[0] || {}).at ? new Date(c.history.slice(-1)[0].at) : null);
+        if(ld) src.lost.push({at:ld});
+      }
+      if(!isArchived(c)){
+        if(c.status === "project_created" || c.status === "project_in_progress") src.live.openProjects++;
+        if(c.status !== "project_closed") src.live.openCOs += (c.changeOrders || []).filter(function(co){ return !co.complete; }).length;
+        if(c.status === "estimating") src.live.estimating++;
+      }
+    });
+    return src;
+  }
+  function dashStatsFrom(src, r){
+    var st = {revenue:0, invoiced:0, jobs:0, estout:0, estCount:0, lost:0, wins:[], openProjects:src.live.openProjects || 0, openCOs:src.live.openCOs || 0, estimating:src.live.estimating || 0};
+    src.wins.forEach(function(w){ if(dashIn(w.at, r)){ st.jobs++; st.revenue += w.amount; } });
+    src.inv.forEach(function(x){ if(dashIn(x.at, r)) st.invoiced += x.amount; });
+    src.sub.forEach(function(x){ if(dashIn(x.at, r)){ st.estout += x.amount; st.estCount++; } });
+    src.lost.forEach(function(x){ if(dashIn(x.at, r)) st.lost++; });
+    st.winrate = (st.jobs + st.lost) ? Math.round(st.jobs / (st.jobs + st.lost) * 100) : null;
+    st.wins = src.wins.slice().sort(function(a, b){ return b.at - a.at; });
+    return st;
+  }
+  function dashStats(r){ return dashStatsFrom(dashSrcFromCards(), r); }
+  function dashGoalFor(key, r, period){
+    var g = (dashGoals[r.start.getFullYear()] || {})[key];
+    if(!g) return 0;
+    if(key === "winrate") return Number(g.annual) || 0;
+    var annual = Number(g.annual) || 0;
+    function month(mi){ var o = g.months && Number(g.months[mi + 1]); return o || annual / 12; }
+    var m0 = r.start.getMonth();
+    if(period === "month") return month(m0);
+    if(period === "quarter") return month(m0) + month(m0 + 1) + month(m0 + 2);
+    return annual || (function(){ var t = 0; for(var i = 0; i < 12; i++) t += month(i); return t; })();
+  }
+  function dashFmt(n, kind){
+    if(n === null || n === undefined) return "—";
+    if(kind === "pct") return n + "%";
+    if(kind === "count") return String(Math.round(n));
+    var a = Math.abs(n);
+    if(a >= 1e6) return "$" + (n / 1e6).toFixed(2).replace(/\.?0+$/, "") + "M";
+    if(a >= 1e4) return "$" + Math.round(n / 1e3) + "K";
+    return "$" + Math.round(n).toLocaleString();
+  }
+  function gaugeSvg(ratio, paceRatio, color){
+    var L = Math.PI * 80, pr = Math.max(0, Math.min(1, ratio)), th = pr * Math.PI;
+    var nx = 100 - 68 * Math.cos(th), ny = 100 - 68 * Math.sin(th);
+    var tick = "";
+    if(paceRatio !== null){
+      var pa = Math.max(0, Math.min(1, paceRatio)) * Math.PI;
+      tick = '<line x1="' + (100 - 74 * Math.cos(pa)) + '" y1="' + (100 - 74 * Math.sin(pa)) + '" x2="' + (100 - 92 * Math.cos(pa)) + '" y2="' + (100 - 92 * Math.sin(pa)) + '" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>';
+    }
+    return '<svg viewBox="0 0 200 112" aria-hidden="true">' +
+      '<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="var(--line)" stroke-width="16" stroke-linecap="round"/>' +
+      '<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="' + color + '" stroke-width="16" stroke-linecap="round" stroke-dasharray="' + (pr * L).toFixed(1) + ' ' + L.toFixed(1) + '"/>' +
+      tick + '<line x1="100" y1="100" x2="' + nx.toFixed(1) + '" y2="' + ny.toFixed(1) + '" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/><circle cx="100" cy="100" r="7" fill="var(--ink)"/></svg>';
+  }
+  function dashGaugeHtml(def, st, r, period, pace){
+    var value = st[def.key], goal = dashGoalFor(def.key, r, period), col = CONFIG.DASH_COLORS.none, ratio = 0, pr = null, state = "";
+    if(def.kind === "pct"){
+      if(value !== null){ ratio = value / 100; if(goal){ col = value >= goal ? CONFIG.DASH_COLORS.good : CONFIG.DASH_COLORS.bad; state = value >= goal ? "At or above goal" : "Below goal"; } else col = CONFIG.DASH_COLORS.good; }
+      pr = goal ? goal / 100 : null;
+    } else if(goal){
+      ratio = value / goal; pr = pace;
+      col = ratio >= pace ? CONFIG.DASH_COLORS.good : (ratio >= pace * 0.75 ? CONFIG.DASH_COLORS.warn : CONFIG.DASH_COLORS.bad);
+      state = ratio >= 1 ? "🎉 Goal reached" : (ratio >= pace ? "On pace" : "Behind pace");
+    }
+    var sub = goal ? ("Goal " + dashFmt(goal, def.kind) + (def.kind !== "pct" ? " · " + Math.round(ratio * 100) + "%" : "")) : (!dashPublic && isOwner() ? "No goal set — use 🎯 Goals" : "No goal set");
+    return '<div class="gauge"><div class="g-label">' + esc(def.label) + '</div>' + gaugeSvg(ratio, pr, col) +
+      '<div class="g-val">' + dashFmt(value, def.kind) + '</div><div class="g-sub">' + esc(sub) + '</div>' +
+      (state ? '<div class="g-state" style="color:' + col + ';">' + state + '</div>' : '') + '</div>';
+  }
+  function renderDash(){
+    var host = document.getElementById("dashView"); if(!host) return;
+    var r = dashRange(dashPeriod, dashOffset), st = dashStats(r), now = new Date();
+    var pace = now >= r.end ? 1 : (now <= r.start ? 0 : (now - r.start) / (r.end - r.start));
+    var recent = st.wins.slice(0, 6);
+    host.innerHTML =
+      '<div class="dash-head"><h2>Company Dashboard · ' + esc(dashLabel(r, dashPeriod)) + '</h2>' +
+        '<div class="dash-seg">' + [["month", "Month"], ["quarter", "Quarter"], ["year", "Year"]].map(function(p){ return '<button data-dp="' + p[0] + '" class="' + (dashPeriod === p[0] ? "on" : "") + '">' + p[1] + '</button>'; }).join("") + '</div>' +
+        '<div class="dash-seg"><button data-dnav="-1" title="Previous">◀</button><button data-dnav="0">Today</button><button data-dnav="1" title="Next">▶</button></div>' +
+        (isOwner() ? '<button class="btn small" id="dashGoalsBtn">🎯 Goals</button>' : '') +
+        '<button class="btn small" id="dashFullBtn" title="Full screen for a wall display">⛶ Full screen</button></div>' +
+      '<div class="gauges">' + CONFIG.DASH_GAUGES.map(function(d){ return dashGaugeHtml(d, st, r, dashPeriod, pace); }).join("") + '</div>' +
+      '<div class="live-row">' +
+        '<div class="live-tile"><div class="n">' + st.openProjects + '</div><div class="l">Open projects</div></div>' +
+        '<div class="live-tile"><div class="n">' + st.openCOs + '</div><div class="l">Open change orders</div></div>' +
+        '<div class="live-tile"><div class="n">' + st.estimating + '</div><div class="l">Estimating now</div></div>' +
+        '<div class="live-tile"><div class="n">' + st.estCount + '</div><div class="l">Estimates out (' + esc(dashLabel(r, dashPeriod)) + ')</div></div>' +
+      '</div>' +
+      '<div class="wins"><h3>Recent wins</h3>' + (recent.length ? recent.map(function(w){ return '<div class="win-row"><span class="wn">' + esc(w.name) + '</span><span class="wa">' + money(w.amount) + '</span><span class="wd">' + w.at.toLocaleDateString() + '</span></div>'; }).join("") : '<div class="note-empty">No wins recorded yet.</div>') + '</div>' +
+      '<div style="text-align:right;font-size:11px;color:var(--ink-soft);margin-top:10px;">Updated ' + now.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) + ' · refreshes automatically</div>';
+    host.querySelectorAll("[data-dp]").forEach(function(b){ b.addEventListener("click", function(){ dashPeriod = b.dataset.dp; dashOffset = 0; renderDash(); }); });
+    host.querySelectorAll("[data-dnav]").forEach(function(b){ b.addEventListener("click", function(){ var d = Number(b.dataset.dnav); dashOffset = d === 0 ? 0 : dashOffset + d; renderDash(); }); });
+    var gb = host.querySelector("#dashGoalsBtn"); if(gb) gb.addEventListener("click", openDashGoals);
+    host.querySelector("#dashFullBtn").addEventListener("click", function(){
+      try { if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch(e){}
+    });
+  }
+  async function loadDashGoals(){
+    if(!supabaseClient) return;
+    try {
+      var r = await supabaseClient.from("app_settings").select("value").eq("key", "dashboard_goals").maybeSingle();
+      if(r && r.data && r.data.value && typeof r.data.value === "object") dashGoals = r.data.value;
+    } catch(e){}
+  }
+  function openDashGoals(){
+    if(!isOwner()){ toast("Only the owner sets goals"); return; }
+    var year = dashRange(dashPeriod, dashOffset).start.getFullYear();
+    var m = document.getElementById("dashGoalsModal");
+    function draw(){
+      var g = dashGoals[year] || {};
+      m.innerHTML = '<div class="modal-head"><h3>🎯 Goals — ' + year + '</h3><button class="btn small" id="dg_close">Close</button></div><div class="modal-body">' +
+        '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:0;">Enter an annual goal. Monthly and quarterly goals split it evenly unless you type a number for a month. Win rate is a target % (same for every period).</p>' +
+        '<div class="inline-row" style="margin-bottom:10px;"><button class="btn small" id="dg_prev">◀ ' + (year - 1) + '</button><button class="btn small" id="dg_next">' + (year + 1) + ' ▶</button></div>' +
+        CONFIG.DASH_GAUGES.filter(function(d){ return d.goal; }).map(function(d){
+          var x = g[d.key] || {}, months = x.months || {};
+          var mon = d.key === "winrate" ? "" : '<div class="inline-row" style="flex-wrap:wrap;gap:6px;margin-top:6px;">' + [1,2,3,4,5,6,7,8,9,10,11,12].map(function(i){ return '<label style="font-size:11px;width:74px;">' + new Date(2000, i - 1, 1).toLocaleString(undefined, {month:"short"}) + '<input type="number" data-dgm="' + d.key + ':' + i + '" value="' + (months[i] || "") + '" placeholder="auto" style="width:100%;"></label>'; }).join("") + '</div>';
+          return '<div class="subcard" style="padding:10px;margin-bottom:8px;"><div class="inline-row"><b style="flex:1;">' + esc(d.label) + '</b><label style="font-size:12px;">' + (d.key === "winrate" ? "Target %" : "Annual goal") + ' <input type="number" data-dga="' + d.key + '" value="' + (x.annual || "") + '" style="width:130px;"></label></div>' + mon + '</div>';
+        }).join("") +
+        '<div class="inline-row"><button class="btn primary" id="dg_save">💾 Save goals</button></div></div>';
+      m.querySelector("#dg_close").addEventListener("click", function(){ closeOverlay("dashGoalsOverlay"); });
+      m.querySelector("#dg_prev").addEventListener("click", function(){ collect(); year--; draw(); });
+      m.querySelector("#dg_next").addEventListener("click", function(){ collect(); year++; draw(); });
+      m.querySelector("#dg_save").addEventListener("click", async function(){
+        collect();
+        var res = await supabaseClient.from("app_settings").upsert({key:"dashboard_goals", value:dashGoals, updated_at:new Date().toISOString(), updated_by:getUser() || ""});
+        if(res && res.error){ toast("Couldn't save goals: " + res.error.message); return; }
+        toast("Goals saved"); closeOverlay("dashGoalsOverlay"); renderDash();
+      });
+    }
+    function collect(){
+      var y = dashGoals[year] = dashGoals[year] || {};
+      m.querySelectorAll("[data-dga]").forEach(function(el){
+        var k = el.dataset.dga; y[k] = y[k] || {}; y[k].annual = el.value === "" ? 0 : Number(el.value);
+      });
+      m.querySelectorAll("[data-dgm]").forEach(function(el){
+        var p = el.dataset.dgm.split(":"); y[p[0]] = y[p[0]] || {}; y[p[0]].months = y[p[0]].months || {};
+        if(el.value === "") delete y[p[0]].months[p[1]]; else y[p[0]].months[p[1]] = Number(el.value);
+      });
+    }
+    draw(); openOverlay("dashGoalsOverlay");
+  }
+  function setView(v, remember){
+    dashMode = (v === "dash");
+    document.body.classList.toggle("dash-mode", dashMode);
+    document.querySelectorAll("#viewToggle button").forEach(function(b){ b.classList.toggle("on", b.dataset.view === v); });
+    if(remember){ try { localStorage.setItem(DASH_VIEW_KEY, v); } catch(e){} }
+    if(dashTimer){ clearInterval(dashTimer); dashTimer = null; }
+    if(dashMode){
+      renderDash(); loadDashGoals().then(function(){ if(dashMode) renderDash(); });
+      dashTimer = setInterval(function(){ if(dashMode && !document.hidden) renderDash(); }, CONFIG.DASH_REFRESH_MS);
+    }
+    setTimeout(syncTopbarHeight, 50);
+  }
+  document.querySelectorAll("#viewToggle button").forEach(function(b){ b.addEventListener("click", function(){ setView(b.dataset.view, true); }); });
+
   function showApp(){
     document.getElementById("loginScreen").style.display = "none";
     document.getElementById("appHeader").style.display = "flex";
     setTimeout(syncTopbarHeight, 0); setTimeout(syncTopbarHeight, 300);
     document.getElementById("board").style.display = "flex";
+    var saved = ""; try { saved = localStorage.getItem(DASH_VIEW_KEY) || ""; } catch(e){}
+    if(saved === "dash" && !dashMode) setView("dash", false);
   }
 
   function recordActivity(){
@@ -7057,6 +7325,7 @@
     currentUserName = "";
     cards = [];
     cardSnap = {}; cardVer = {}; serverIds = []; cardSyncOn = false;
+    if(dashMode) setView("cards", false);
     alerts = [];
     document.getElementById("userField").style.display = "none";
     showLogin();
@@ -7236,6 +7505,7 @@
           if(document.getElementById("serviceCalView").style.display !== "none") renderServiceCalendar();
         }
         cards = await loadCardsRemote();
+        if(dashMode) renderDash();
         cards.forEach(migrateCard);
         if(document.getElementById("board").style.display !== "none") renderBoard();
         if(document.getElementById("calendarView").style.display !== "none") renderCalendar();
@@ -7270,8 +7540,223 @@
       showLogin();
     }
   }
+
+  /* ---------------- Branding (logo above the board name) ---------------- */
+  var branding = {name:"", logo:""};
+  function brandName(){ return (branding.name || "").trim() || CONFIG.BRAND_DEFAULT_NAME; }
+  function applyBranding(){
+    var hasName = !!(branding.name || "").trim(), hasLogo = !!branding.logo;
+    var mark = document.querySelector(".brand .mark");
+    if(mark && (hasName || hasLogo)){
+      mark.innerHTML = (hasLogo ? '<img class="brand-logo" alt="" src="' + esc(branding.logo) + '">' : "") + (hasName ? esc(branding.name.trim()) : "🗂️ " + esc(CONFIG.BRAND_DEFAULT_NAME));
+    }
+    var lm = document.querySelector(".login-mark");
+    if(lm && (hasName || hasLogo)){
+      lm.innerHTML = (hasLogo ? '<img class="login-logo" alt="" src="' + esc(branding.logo) + '">' : "") + (hasName ? esc(branding.name.trim()) : "🗂️ " + esc(CONFIG.BRAND_DEFAULT_NAME));
+    }
+    if(hasName) document.title = branding.name.trim();
+    setTimeout(function(){ try { syncTopbarHeight(); } catch(e){} }, 60);
+  }
+  async function loadBranding(){
+    if(!supabaseClient) return;
+    try {
+      var r = await supabaseClient.rpc("get_branding");
+      if(r && r.data && typeof r.data === "object") branding = {name:String(r.data.name || ""), logo:String(r.data.logo || "")};
+    } catch(e){}
+    applyBranding();
+  }
+  function saveBranding(){
+    return supabaseClient.from("app_settings").upsert({key:"branding", value:branding, updated_at:new Date().toISOString(), updated_by:getUser() || ""});
+  }
+  function brandSettingsHtml(){
+    return '<p class="section-title" style="margin-top:20px;">Branding</p>' +
+      '<div class="note-empty">The logo shows above the board name in the header, on the sign-in screen and on wall screens. The name is never replaced by the logo.</div>' +
+      '<div class="inline-row" style="margin-top:8px;align-items:flex-end;"><div class="field" style="flex:1 1 220px;margin:0;"><label>Board name</label><input type="text" id="br_name" value="' + esc(branding.name || "") + '" placeholder="' + esc(CONFIG.BRAND_DEFAULT_NAME) + '"></div>' +
+      '<button class="btn small primary" id="br_saveName">Save name</button></div>' +
+      '<div class="inline-row" style="margin-top:10px;align-items:center;">' + (branding.logo ? '<img src="' + esc(branding.logo) + '" alt="" style="max-height:48px;max-width:160px;border:1px solid var(--line);border-radius:6px;padding:4px;background:#fff;">' : '<span style="font-size:12px;color:var(--ink-soft);">No logo uploaded</span>') +
+      '<label class="btn small" style="cursor:pointer;">⬆ Upload logo<input type="file" id="br_file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" style="display:none;"></label>' +
+      (branding.logo ? '<button class="btn small" id="br_rmLogo">Remove logo</button>' : '') + '</div>';
+  }
+  function brandSettingsWire(){
+    var box = document.getElementById("brandBox"); if(!box) return;
+    function redraw(){ box.innerHTML = brandSettingsHtml(); brandSettingsWire(); applyBranding(); }
+    box.querySelector("#br_saveName").addEventListener("click", async function(){
+      branding.name = box.querySelector("#br_name").value.trim();
+      var res = await saveBranding(); if(res.error){ toast("Couldn't save: " + res.error.message); return; }
+      toast("Board name saved"); if(!branding.name) location.reload(); else redraw();
+    });
+    box.querySelector("#br_file").addEventListener("change", async function(e){
+      var f = e.target.files[0]; if(!f) return;
+      if(!/^image\/(png|jpeg|svg\+xml|webp|gif)$/.test(f.type)){ toast("Use a PNG, JPG, SVG, WebP or GIF image"); return; }
+      if(f.size > 1572864){ toast("Logo must be under 1.5 MB"); return; }
+      var ext = f.type === "image/svg+xml" ? "svg" : f.type.split("/")[1].replace("jpeg", "jpg"), path = "logo-" + Date.now() + "." + ext;
+      var up = await supabaseClient.storage.from("branding").upload(path, f, {contentType:f.type, upsert:true});
+      if(up.error){ toast("Upload failed: " + up.error.message); return; }
+      branding.logo = supabaseClient.storage.from("branding").getPublicUrl(path).data.publicUrl;
+      var res = await saveBranding(); if(res.error){ toast("Couldn't save: " + res.error.message); return; }
+      toast("Logo updated"); redraw();
+    });
+    var rm = box.querySelector("#br_rmLogo");
+    if(rm) rm.addEventListener("click", async function(){
+      branding.logo = ""; var res = await saveBranding(); if(res.error){ toast("Couldn't save: " + res.error.message); return; }
+      toast("Logo removed"); location.reload();
+    });
+  }
+
+  /* ---------------- Settings -> Dashboards (wall-screen boards) ---------------- */
+  var sgScreens = [], sgHasCode = {};
+  function sgCfg(sc){ return Object.assign({}, CONFIG.SG_DEFAULT, sc.config || {}); }
+  function sgLink(id){ return location.origin + location.pathname + "?signage=" + id; }
+  function sgCheck(attr, id, key, label, on){ return '<label style="font-size:12.5px;margin-right:12px;white-space:nowrap;"><input type="checkbox" data-' + attr + '="' + id + ':' + esc(key) + '"' + (on ? " checked" : "") + '> ' + esc(label) + '</label>'; }
+  function sgScreenHtml(sc){
+    var c = sgCfg(sc), id = sc.id;
+    return '<div class="subcard" style="padding:12px;margin-top:10px;" data-sgcard="' + id + '">' +
+      '<div class="inline-row" style="align-items:flex-end;"><div class="field" style="flex:1 1 200px;margin:0;"><label>Screen name</label><input type="text" data-sgname="' + id + '" value="' + esc(sc.name) + '"></div>' +
+      '<div class="field" style="flex:0 0 150px;margin:0;"><label>' + (sgHasCode[id] ? "New 4-digit code" : "Set 4-digit code") + '</label><input type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" data-sgcode="' + id + '" placeholder="' + (sgHasCode[id] ? "leave blank to keep" : "required") + '"></div></div>' +
+      '<div style="font-size:11.5px;margin:4px 0 8px;color:' + (sgHasCode[id] ? "var(--green,#2e7d4f)" : "var(--red)") + ';">' + (sgHasCode[id] ? "✓ Code is set. Changing it signs this screen out everywhere." : "⚠ No code yet — this screen won't appear on the TV's list until you set one.") + '</div>' +
+      '<div style="margin:6px 0;"><b style="font-size:12px;">Gauges</b><br>' + CONFIG.DASH_GAUGES.map(function(g){ return sgCheck("sgg", id, g.key, g.label, c.gauges.indexOf(g.key) !== -1); }).join("") + '</div>' +
+      '<div style="margin:6px 0;"><b style="font-size:12px;">Live tiles</b><br>' + CONFIG.SG_TILES.map(function(t){ return sgCheck("sgt", id, t[0], t[1], c.tiles.indexOf(t[0]) !== -1); }).join("") + '</div>' +
+      '<div style="margin:6px 0;"><b style="font-size:12px;">Periods shown (rotates if more than one)</b><br>' + CONFIG.SG_PERIODS.map(function(p){ return sgCheck("sgp", id, p[0], p[1], c.periods.indexOf(p[0]) !== -1); }).join("") +
+        '<label style="font-size:12.5px;">Rotate every <input type="number" min="5" max="600" data-sgrot="' + id + '" value="' + esc(String(c.rotateSec)) + '" style="width:64px;"> sec</label></div>' +
+      '<div style="margin:6px 0;"><b style="font-size:12px;">Display</b><br>' +
+        sgCheck("sgo", id, "showWins", "Show recent wins (project names)", c.showWins) + sgCheck("sgo", id, "dark", "Dark theme", c.dark) +
+        sgCheck("sgo", id, "shift", "Pixel shift (anti burn-in)", c.shift) + sgCheck("sgo", id, "dim", "Dim at night (" + CONFIG.SG_DIM_FROM + ":00–" + CONFIG.SG_DIM_TO + ":00)", c.dim) + '</div>' +
+      '<div class="inline-row" style="margin-top:8px;"><button class="btn small primary" data-sgsave="' + id + '">💾 Save screen</button>' +
+        '<button class="btn small" data-sglink="' + id + '">🔗 Copy link</button><button class="btn small" data-sgdel="' + id + '">🗑 Delete</button></div></div>';
+  }
+  async function sgSettingsRender(){
+    var box = document.getElementById("sgBox"); if(!box) return;
+    var r = await supabaseClient.from("signage_screens").select("*").order("sort_order").order("name");
+    sgScreens = (r && r.data) || [];
+    try { var l = await supabaseClient.rpc("signage_list"); sgHasCode = {}; ((l && l.data) || []).forEach(function(x){ sgHasCode[x.id] = true; }); } catch(e){}
+    box.innerHTML = '<p class="section-title" style="margin-top:20px;">Dashboards (wall screens)</p>' +
+      '<div class="note-empty">Open the link on the TV, pick the screen and type its 4-digit code. No username needed, and nothing else from the app is reachable from that page. Five wrong codes lock that screen for 15 minutes.</div>' +
+      (sgScreens.length ? sgScreens.map(sgScreenHtml).join("") : '<div class="note-empty" style="margin-top:8px;">No screens yet.</div>') +
+      '<div class="inline-row" style="margin-top:10px;"><button class="btn small primary" id="sg_add">+ Add screen</button></div>';
+    box.querySelector("#sg_add").addEventListener("click", async function(){
+      var res = await supabaseClient.from("signage_screens").insert({name:"Screen " + (sgScreens.length + 1), config:CONFIG.SG_DEFAULT, sort_order:sgScreens.length});
+      if(res.error){ toast("Couldn't add: " + res.error.message); return; }
+      sgSettingsRender();
+    });
+    box.querySelectorAll("[data-sglink]").forEach(function(b){ b.addEventListener("click", function(){ copyText(sgLink(b.dataset.sglink), "Screen link copied"); }); });
+    box.querySelectorAll("[data-sgdel]").forEach(function(b){ b.addEventListener("click", async function(){
+      if(!confirm("Delete this screen? Any TV showing it will return to the code prompt.")) return;
+      var res = await supabaseClient.from("signage_screens").delete().eq("id", b.dataset.sgdel);
+      if(res.error){ toast("Couldn't delete: " + res.error.message); return; }
+      sgSettingsRender();
+    }); });
+    box.querySelectorAll("[data-sgsave]").forEach(function(b){ b.addEventListener("click", async function(){
+      var id = b.dataset.sgsave, card = box.querySelector('[data-sgcard="' + id + '"]');
+      function picks(attr){ return Array.prototype.slice.call(card.querySelectorAll("[data-" + attr + "]")).filter(function(x){ return x.checked; }).map(function(x){ return x.getAttribute("data-" + attr).split(":")[1]; }); }
+      var opts = picks("sgo"), cfg = {gauges:picks("sgg"), tiles:picks("sgt"), periods:picks("sgp"), rotateSec:Math.max(5, Number(card.querySelector("[data-sgrot]").value) || 20),
+        showWins:opts.indexOf("showWins") !== -1, dark:opts.indexOf("dark") !== -1, shift:opts.indexOf("shift") !== -1, dim:opts.indexOf("dim") !== -1};
+      if(!cfg.periods.length) cfg.periods = ["month"];
+      var name = card.querySelector("[data-sgname]").value.trim() || "Screen", code = card.querySelector("[data-sgcode]").value.trim();
+      if(code && !/^\d{4}$/.test(code)){ toast("The code must be exactly 4 digits"); return; }
+      if(!code && !sgHasCode[id]){ toast("Set a 4-digit code so this screen can be used"); return; }
+      var res = await supabaseClient.from("signage_screens").update({name:name, config:cfg}).eq("id", id);
+      if(res.error){ toast("Couldn't save: " + res.error.message); return; }
+      if(code){ var cr = await supabaseClient.rpc("signage_set_code", {p_screen:id, p_code:code}); if(cr.error){ toast("Saved, but the code failed: " + cr.error.message); return; } }
+      toast("Screen saved" + (code ? " — code updated" : "")); sgSettingsRender();
+    }); });
+  }
+
+  /* ---------------- Signage page (?signage) — no login, code-protected, summary data only ---------------- */
+  function signageInit(preScreen){
+    ["loginScreen","appHeader","board","libraryView","serviceCalView","calendarView","archiveView","reportsView","publicForm","dashView"].forEach(function(id){ var x = document.getElementById(id); if(x) x.style.display = "none"; });
+    var host = document.getElementById("signageView"); host.style.display = "block";
+    var LS = "ci_sg_session_v1", timers = {}, st8 = {data:null, pIdx:0, off:false, shiftN:0, token:""};
+    function clearTimers(){ Object.keys(timers).forEach(function(k){ clearInterval(timers[k]); clearTimeout(timers[k]); }); timers = {}; }
+    function saved(){ try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch(e){ return null; } }
+    function logoHtml(cls){ return branding.logo ? '<img class="' + cls + '" alt="" src="' + esc(branding.logo) + '">' : ""; }
+    document.documentElement.setAttribute("data-theme", "dark");
+    if(!supabaseClient){ host.innerHTML = '<div class="sg-login">Could not reach the service.</div>'; return; }
+
+    async function loginUi(msg, lockSecs){
+      clearTimers();
+      var list = [];
+      try { var l = await supabaseClient.rpc("signage_list"); list = (l && l.data) || []; } catch(e){}
+      var sel = preScreen || (saved() || {}).screen || "";
+      host.innerHTML = '<div class="sg-login">' + logoHtml("login-logo") + '<div class="login-mark">' + esc(brandName()) + '</div><p class="login-sub">Wall screen — choose a screen and enter its code</p>' +
+        (list.length ? '<div class="field"><label>Screen</label><select id="sgSel">' + list.map(function(x){ return '<option value="' + esc(x.id) + '"' + (x.id === sel ? " selected" : "") + '>' + esc(x.name) + '</option>'; }).join("") + '</select></div>' +
+        '<div class="field"><label>4-digit code</label><input type="password" id="sgCode" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="letter-spacing:.5em;font-size:22px;text-align:center;"></div>' : '<div class="note-empty">No screens are set up yet.</div>') +
+        '<div id="sgMsg" class="login-error" style="' + (msg ? "" : "display:none;") + '">' + esc(msg || "") + '</div></div>';
+      var code = host.querySelector("#sgCode"); if(!code) return;
+      if(lockSecs){ code.disabled = true; var left = lockSecs; var t = setInterval(function(){ left--; var m = host.querySelector("#sgMsg"); if(left <= 0){ clearInterval(t); loginUi(""); return; } if(m) m.textContent = "Too many wrong codes. Try again in " + Math.ceil(left / 60) + " min."; }, 1000); timers.lock = t; return; }
+      code.focus();
+      code.addEventListener("input", async function(){
+        code.value = code.value.replace(/\D/g, "");
+        if(code.value.length !== 4) return;
+        code.disabled = true;
+        var res = await supabaseClient.rpc("signage_login", {p_screen:host.querySelector("#sgSel").value, p_code:code.value}), d = (res && res.data) || {};
+        if(d.token){ try { localStorage.setItem(LS, JSON.stringify({screen:host.querySelector("#sgSel").value, token:d.token})); } catch(e){} st8.token = d.token; st8.pIdx = 0; start(); return; }
+        if(d.error === "locked") loginUi("Too many wrong codes. Try again in " + Math.ceil((d.retry_after || 900) / 60) + " min.", d.retry_after || 900);
+        else if(d.error === "wrong") loginUi("Wrong code — " + d.attempts_left + " " + (d.attempts_left === 1 ? "try" : "tries") + " left.");
+        else loginUi("Couldn't sign in. Please try again.");
+      });
+    }
+
+    function inDim(cfg){ var h = new Date().getHours(); return cfg.dim && (CONFIG.SG_DIM_FROM > CONFIG.SG_DIM_TO ? (h >= CONFIG.SG_DIM_FROM || h < CONFIG.SG_DIM_TO) : (h >= CONFIG.SG_DIM_FROM && h < CONFIG.SG_DIM_TO)); }
+    function srcFrom(d){
+      function ev(a, f){ return (a || []).map(function(x){ var o = {at:new Date(x.t)}; if(f) f(o, x); return o; }); }
+      return {wins:ev(d.wins, function(o, x){ o.amount = Number(x.a) || 0; }), inv:ev(d.inv, function(o, x){ o.amount = Number(x.a) || 0; }), sub:ev(d.sub, function(o, x){ o.amount = Number(x.a) || 0; }), lost:ev(d.lost), live:d.live || {}};
+    }
+    function draw(){
+      var d = st8.data; if(!d) return;
+      var cfg = Object.assign({}, CONFIG.SG_DEFAULT, (d.screen || {}).config || {}), per = (cfg.periods && cfg.periods.length) ? cfg.periods : ["month"], period = per[st8.pIdx % per.length];
+      document.documentElement.setAttribute("data-theme", cfg.dark ? "dark" : "light");
+      dashPublic = true; dashGoals = d.goals || {};
+      var r = dashRange(period, 0), st = dashStatsFrom(srcFrom(d), r), now = new Date();
+      var pace = now >= r.end ? 1 : (now <= r.start ? 0 : (now - r.start) / (r.end - r.start));
+      var gauges = CONFIG.DASH_GAUGES.filter(function(g){ return cfg.gauges.indexOf(g.key) !== -1; });
+      var tiles = CONFIG.SG_TILES.filter(function(t){ return cfg.tiles.indexOf(t[0]) !== -1; });
+      var recent = cfg.showWins ? (d.recent || []) : [];
+      var b = d.branding || {}; if(b.logo || b.name) branding = {name:String(b.name || ""), logo:String(b.logo || "")};
+      host.innerHTML = '<div class="sg-stage" id="sgStage">' +
+        '<div class="sg-head">' + logoHtml("") + '<div class="sg-name">' + esc(brandName()) + '</div><div class="sg-sub">' + esc((d.screen || {}).name || "") + ' · ' + esc(dashLabel(r, period)) + (st8.off ? " · ⚠ offline, showing last data" : "") + '</div></div>' +
+        (gauges.length ? '<div class="gauges">' + gauges.map(function(g){ return dashGaugeHtml(g, st, r, period, pace); }).join("") + '</div>' : "") +
+        (tiles.length ? '<div class="live-row">' + tiles.map(function(t){ return '<div class="live-tile"><div class="n">' + (st[t[0]] || 0) + '</div><div class="l">' + esc(t[1]) + '</div></div>'; }).join("") + '</div>' : "") +
+        (cfg.showWins ? '<div class="wins"><h3>Recent wins</h3>' + (recent.length ? recent.slice(0, 5).map(function(w){ return '<div class="win-row"><span class="wn">' + esc(w.n) + '</span><span class="wa">' + money(Number(w.a) || 0) + '</span><span class="wd">' + new Date(w.t).toLocaleDateString() + '</span></div>'; }).join("") : '<div class="note-empty">No wins recorded yet.</div>') + '</div>' : "") +
+        '<div class="sg-foot">Updated ' + now.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) + '</div></div>' +
+        '<div id="sgCtl"><button class="btn small" id="sgFull">⛶ Full screen</button><button class="btn small" id="sgOut">Change screen</button></div>';
+      var stage = host.querySelector("#sgStage");
+      stage.style.filter = inDim(cfg) ? "brightness(.4)" : "none";
+      applyShift(cfg);
+      host.querySelector("#sgFull").addEventListener("click", function(){ try { if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch(e){} });
+      host.querySelector("#sgOut").addEventListener("click", function(){ try { localStorage.removeItem(LS); } catch(e){} st8.data = null; loginUi(""); });
+    }
+    var SHIFTS = [[0,0],[10,6],[-8,12],[6,-10],[-12,-6],[8,10],[-6,-12],[12,-4]];
+    function applyShift(cfg){
+      var stage = host.querySelector("#sgStage"); if(!stage) return;
+      var o = cfg.shift ? SHIFTS[st8.shiftN % SHIFTS.length] : [0, 0];
+      stage.style.transform = "translate(" + o[0] + "px," + o[1] + "px)";
+    }
+    async function pull(){
+      var res = await supabaseClient.rpc("signage_data", {p_token:st8.token}), d = res && res.data;
+      if(!res || res.error || !d){ st8.off = true; draw(); return; }
+      if(d.error){ try { localStorage.removeItem(LS); } catch(e){} loginUi("This screen was signed out. Enter the code again."); return; }
+      st8.off = false; st8.data = d; draw();
+    }
+    function start(){
+      clearTimers();
+      pull().then(function(){
+        if(!st8.data) return;
+        var cfg = Object.assign({}, CONFIG.SG_DEFAULT, (st8.data.screen || {}).config || {});
+        timers.pull = setInterval(pull, Math.max(CONFIG.DASH_REFRESH_MS, 60000));
+        timers.rot = setInterval(function(){ st8.pIdx++; draw(); }, Math.max(5, Number(cfg.rotateSec) || 20) * 1000);
+        timers.shift = setInterval(function(){ st8.shiftN++; applyShift(cfg); }, CONFIG.SG_SHIFT_MS);
+      });
+    }
+    document.addEventListener("mousemove", function(){ var c = host.querySelector("#sgCtl"); if(!c) return; c.classList.add("show"); clearTimeout(timers.ctl); timers.ctl = setTimeout(function(){ c.classList.remove("show"); }, 4000); });
+    loadBranding().then(function(){
+      var sv = saved();
+      if(sv && sv.token && (!preScreen || preScreen === sv.screen)){ st8.token = sv.token; start(); } else loginUi("");
+    });
+  }
   var _formTok = ""; try { _formTok = new URLSearchParams(location.search).get("form") || ""; } catch(e){}
-  if(_formTok) publicFormInit(_formTok); else bootstrapAuth();
+  var _sg = null; try { var _qp = new URLSearchParams(location.search); if(_qp.has("signage")) _sg = _qp.get("signage") || ""; } catch(e){}
+  if(_sg !== null) signageInit(_sg);
+  else { loadBranding(); if(_formTok) publicFormInit(_formTok); else bootstrapAuth(); }
 })();
 </script>
 </body>
